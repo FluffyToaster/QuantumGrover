@@ -44,10 +44,16 @@ def interpret_results(result_dict):
         name = int_to_bits(i)
 
         # add to list of bars
-        ordered_bars[i] = (name, bar)
+        # new_name = ""
+        # for n in range(len(name)):
+        #     new_name += "q[{}]={} ".format(n, name[-n-1])
+
+        # reverse order of name bits, because QAPI
+        ordered_bars[i] = (name[::-1], bar)
 
     for b in ordered_bars:
         plt.bar(*b)
+    plt.title("Measurements, first value is q[0], second is q[1], etc")
     plt.show()
     return ordered_bars
 
@@ -69,18 +75,16 @@ qasm_program_file = open("program.qasm", "r")
 qasm_program = qasm_program_file.read(-1)
 
 replacements = [
-    ("PI1", math.pi),
-    ("PI2", math.pi / 2),
-    ("PI3", math.pi / 3),
-    ("PI4", math.pi / 4),
-    ("PI6", math.pi / 6),
+    ("PI/1", math.pi),
+    ("PI/2", math.pi / 2),
+    ("PI/3", math.pi / 3),
+    ("PI/4", math.pi / 4),
+    ("PI/6", math.pi / 6),
+    ("PI/8", math.pi / 8),
 ]
 
 for r_text, r_repl in replacements:
-    print("replacing {} by {}".format(r_text, r_repl))
     qasm_program = qasm_program.replace(r_text, str(r_repl))
-
-print(qasm_program)
 
 qasm_complete = qasm_header + qasm_program
 
