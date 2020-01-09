@@ -3,10 +3,10 @@ from quantuminspire.api import QuantumInspireAPI
 import matplotlib.pyplot as plt
 import math
 
-DATA_QUBITS = 5
-CONTROL_QUBITS = 2
+DATA_QUBITS = 6
+CONTROL_QUBITS = int(math.floor(DATA_QUBITS / 2))
 QUBIT_COUNT = DATA_QUBITS + CONTROL_QUBITS
-SEARCH_TARGET = "01010"[::-1]
+SEARCH_TARGET = "111011"[::-1]
 SHOT_COUNT = 512
 
 
@@ -36,6 +36,19 @@ def n_size_cnot(n):
         Toffoli q[2], q[3], q[6]
         Toffoli q[0], q[1], q[5]
         """
+    elif n == 6:
+        local_qasm = """
+        Toffoli q[0], q[1], q[6]
+        Toffoli q[2], q[3], q[7]
+        Toffoli q[4], q[6], q[8]
+        Toffoli q[7], q[8], q[5]
+        Toffoli q[4], q[6], q[8]
+        Toffoli q[2], q[3], q[7]
+        Toffoli q[0], q[1], q[6]
+        """
+    else:
+        raise ValueError("Toffoli size not supported: {}".format(n))
+
     return local_qasm
 
 
@@ -138,6 +151,6 @@ result = qi.execute_qasm(qasm, backend_type=backend, number_of_shots=SHOT_COUNT)
 print("Execution complete, printing and plotting results")
 histogram_list = interpret_results(result)
 for h in histogram_list:
-    if h[0] == SEARCH_TARGET.zfill(QUBIT_COUNT):
+    if h[0] == SEARCH_TARGET[::-1].zfill(QUBIT_COUNT):
         print("Probability of search target: {}".format(h[1]))
 
