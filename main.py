@@ -3,41 +3,51 @@ from quantuminspire.api import QuantumInspireAPI
 import matplotlib.pyplot as plt
 import math
 
-QUBIT_COUNT = 5
-CONTROL_QUBITS = 1
-DATA_QUBITS = QUBIT_COUNT - CONTROL_QUBITS
-SEARCH_TARGET = "1111"[::-1]
+DATA_QUBITS = 5
+CONTROL_QUBITS = 2
+QUBIT_COUNT = DATA_QUBITS + CONTROL_QUBITS
+SEARCH_TARGET = "01010"[::-1]
 SHOT_COUNT = 512
 
 
-def fill(local_qasm, character):
+def fill(character):
+    local_qasm = ""
     for i in range(DATA_QUBITS):
         local_qasm += "{} q[{}]\n".format(character, i)
     return local_qasm
 
 
-def n_size_cnot(local_qasm, n):
+def n_size_cnot(n):
     if n == 2:
-        local_qasm += "CNOT q[0],q[1]\n"
+        local_qasm = "CNOT q[0],q[1]\n"
     elif n == 3:
-        local_qasm += "Toffoli q[0],q[1],q[2]\n"
+        local_qasm = "Toffoli q[0],q[1],q[2]\n"
     elif n == 4:
-        local_qasm += """
+        local_qasm = """
         Toffoli q[0],q[1],q[4]
         Toffoli q[2],q[4],q[3]
         Toffoli q[0],q[1],q[4]
         """
+    elif n == 5:
+        local_qasm = """
+        Toffoli q[0], q[1], q[5]
+        Toffoli q[2], q[3], q[6]
+        Toffoli q[5], q[6], q[4]
+        Toffoli q[2], q[3], q[6]
+        Toffoli q[0], q[1], q[5]
+        """
     return local_qasm
 
 
-def toffoli_penis(local_qasm):
-    local_qasm += "H q[{}]\n".format(DATA_QUBITS - 1)
-    local_qasm = n_size_cnot(local_qasm, DATA_QUBITS)
+def toffoli_penis():
+    local_qasm = "H q[{}]\n".format(DATA_QUBITS - 1)
+    local_qasm += n_size_cnot(DATA_QUBITS)
     local_qasm += "H q[{}]\n".format(DATA_QUBITS - 1)
     return local_qasm
 
 
-def oracle(local_qasm):
+def oracle():
+    local_qasm = ""
     for i in range(DATA_QUBITS):
         if SEARCH_TARGET[i] == "0":
             local_qasm += "X q[{}]\n".format(i)
@@ -104,47 +114,30 @@ qubits {}
 """.format(QUBIT_COUNT)
 
 # initialisation
-qasm = fill(qasm, "H")
+qasm += fill("H")
 
 # looping grover
 for iteration in range(int(math.pi * math.sqrt(2 ** DATA_QUBITS) / 4)):
 
     # oracle
-    # only 3 qubit support for now
-    qasm = oracle(qasm)
-    qasm = toffoli_penis(qasm)
-    qasm = oracle(qasm)
+    qasm += oracle()
+    qasm += toffoli_penis()
+    qasm += oracle()
 
     # diffusion
-    qasm = fill(qasm, "H")
-    qasm = fill(qasm, "X")
-    qasm = toffoli_penis(qasm)
-    qasm = fill(qasm, "X")
-    qasm = fill(qasm, "H")
-
-#
-# qasm_program_file = open("program.qasm", "r")
-# qasm_program = qasm_program_file.read(-1)
-#
-# replacements = [
-#     ("PI/1", math.pi),
-#     ("PI/2", math.pi / 2),
-#     ("PI/3", math.pi / 3),
-#     ("PI/4", math.pi / 4),
-#     ("PI/6", math.pi / 6),
-#     ("PI/8", math.pi / 8),
-# ]
-#
-# for r_text, r_repl in replacements:
-#     qasm_program = qasm_program.replace(r_text, str(r_repl))
-#
-# qasm_complete = qasm_header + qasm_program
-
-print(qasm)
+    qasm += fill("H")
+    qasm += fill("X")
+    qasm += toffoli_penis()
+    qasm += fill("X")
+    qasm += fill("H")
 
 backend = qi.get_backend_type_by_name('QX single-node simulator')
 
 print("Executing QASM code ({} qubits, {} shots)".format(QUBIT_COUNT, SHOT_COUNT))
 result = qi.execute_qasm(qasm, backend_type=backend, number_of_shots=SHOT_COUNT)
 print("Execution complete, printing and plotting results")
-print(interpret_results(result))
+histogram_list = interpret_results(result)
+for h in histogram_list:
+    if h[0] == SEARCH_TARGET.zfill(QUBIT_COUNT):
+        print("Probability of search target: {}".format(h[1]))
+
