@@ -1,6 +1,7 @@
 from quantuminspire.credentials import enable_account
 from quantuminspire.api import QuantumInspireAPI
 from functions import *
+from optimiser import *
 import math
 
 enable_account("58957ea5a48a801eb5af6adcae7776126c122c9d")
@@ -37,12 +38,14 @@ qasm += fill("X")
 qasm += fill("H")
 
 backend = qi.get_backend_type_by_name('QX single-node simulator')
-
 print("Executing QASM code ({} instructions, {} qubits, {} shots)".format(qasm.count("\n"), QUBIT_COUNT, SHOT_COUNT))
+qasm = optimise(qasm)
+qasm = optimise(qasm)
+print(qasm)
+
 result = qi.execute_qasm(qasm, backend_type=backend, number_of_shots=SHOT_COUNT)
 runtime = result["execution_time_in_seconds"]
 print("Ran in {} seconds".format(runtime))
-print(qasm)
 
 if QUBIT_COUNT > 15:
     print("No plot because of large qubit count")

@@ -10,7 +10,8 @@ def fill(character):
 
     Returns: Valid QASM to append to the program
     """
-    return "{} q[0:{}]\n".format(character, DATA_QUBITS - 1)
+    indices = ",".join(map(str,range(DATA_QUBITS)))
+    return "{} q[{}]\n".format(character, indices)
 
 
 def n_size_cnot(n):
