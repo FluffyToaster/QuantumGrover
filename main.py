@@ -21,24 +21,27 @@ qubits {}
 qasm += fill("H")
 
 # looping grover
-iterations = int(math.pi * math.sqrt(2 ** DATA_QUBITS) / 4)
+iterations = int(math.pi * math.sqrt((2 ** DATA_QUBITS) / 2) / 4)
 qasm += ".grover_loop({})\n".format(iterations)
 
 # oracle
-qasm += oracle()
-qasm += toffoli_penis()
-qasm += oracle()
+qasm += oracle(SEARCH_TARGET_1)
+qasm += cnot_pillar()
+qasm += oracle(SEARCH_TARGET_1)
+
+qasm += oracle(SEARCH_TARGET_2)
+qasm += cnot_pillar()
+qasm += oracle(SEARCH_TARGET_2)
+
 
 # diffusion
 qasm += fill("H")
 qasm += fill("X")
-qasm += toffoli_penis()
+qasm += cnot_pillar()
 qasm += fill("X")
 qasm += fill("H")
 
 backend = qi.get_backend_type_by_name('QX single-node simulator')
-
-print(qasm)
 
 print("Executing QASM code ({} instructions, {} qubits, {} shots)".format(qasm.count("\n"), QUBIT_COUNT, SHOT_COUNT))
 result = qi.execute_qasm(qasm, backend_type=backend, number_of_shots=SHOT_COUNT)
@@ -52,5 +55,7 @@ else:
     histogram_list = interpret_results(result)
 
 for h in histogram_list:
-    if h[0] == SEARCH_TARGET[::-1].zfill(QUBIT_COUNT):
-        print("Probability of search target: {}".format(h[1]))
+    if h[0] == SEARCH_TARGET_1_HEX:
+        print("Probability of search target 1, hex representation '{}': {}".format(SEARCH_TARGET_1_HEX, h[1]))
+    if h[0] == SEARCH_TARGET_2_HEX:
+        print("Probability of search target 2, hex representation '{}': {}".format(SEARCH_TARGET_2_HEX, h[1]))

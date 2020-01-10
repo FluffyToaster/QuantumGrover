@@ -48,7 +48,7 @@ def n_size_cnot(n):
     return local_qasm
 
 
-def toffoli_penis():
+def cnot_pillar():
     """
     Generate a common structure that applies a Hadamard, CNOT, and Hadamard again to the lowest data bit
 
@@ -60,16 +60,19 @@ def toffoli_penis():
     return local_qasm
 
 
-def oracle():
+def oracle(search_term):
     """
     Generate a common structure that is used in the oracle circuit.
     It flips all bits that correspond to a 0 in the search target.
 
     Returns: Valid QASM to append to the program
     """
+    if "0" not in search_term:
+        return "\n"
+
     local_qasm = "X q["
     for i in range(DATA_QUBITS):
-        if SEARCH_TARGET[i] == "0":
+        if search_term[i] == "0":
             local_qasm += str(i) + ","
 
     # remove last comma and add closing bracket
@@ -114,12 +117,16 @@ def interpret_results(result_dict, plot=True):
         # generate corresponding binary name (so "11" instead of "3")
         name = int_to_bits(i)
 
-        ordered_bars[i] = (name, bar)
+        ordered_bars[i] = (hex(int(name, 2))[2:], bar)
 
     if plot:
         for b in ordered_bars:
-            plt.bar(*b)
-        plt.title("Measurements, q[0] is the last bit")
+            if int(b[0], 16) < 2**DATA_QUBITS:
+                plt.bar(*b)
+            elif b[1] != 0:
+                raise ValueError("\tNonzero result from 'impossible' measurement:\n"
+                                 "\tColumn {} has fraction {}. This means not all control bits were 0!".format(b[0], b[1]))
+        plt.title("Measurements, q[0] is the last bit, control qubits omitted")
         plt.show()
 
     return ordered_bars
