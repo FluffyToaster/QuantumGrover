@@ -3,7 +3,6 @@ from quantuminspire.api import QuantumInspireAPI
 from functions import *
 import math
 
-
 enable_account("58957ea5a48a801eb5af6adcae7776126c122c9d")
 qi = QuantumInspireAPI()
 
@@ -21,18 +20,14 @@ qubits {}
 qasm += fill("H")
 
 # looping grover
-iterations = int(math.pi * math.sqrt((2 ** DATA_QUBITS) / 2) / 4)
+iterations = int(math.pi * math.sqrt((2 ** DATA_QUBITS) / len(SEARCH_TARGETS)) / 4)
 qasm += ".grover_loop({})\n".format(iterations)
 
 # oracle
-qasm += oracle(SEARCH_TARGET_1)
-qasm += cnot_pillar()
-qasm += oracle(SEARCH_TARGET_1)
-
-qasm += oracle(SEARCH_TARGET_2)
-qasm += cnot_pillar()
-qasm += oracle(SEARCH_TARGET_2)
-
+for s in range(len(SEARCH_TARGETS)):
+    qasm += oracle(SEARCH_TARGETS[s])
+    qasm += cnot_pillar()
+    qasm += oracle(SEARCH_TARGETS[s])
 
 # diffusion
 qasm += fill("H")
@@ -47,15 +42,18 @@ print("Executing QASM code ({} instructions, {} qubits, {} shots)".format(qasm.c
 result = qi.execute_qasm(qasm, backend_type=backend, number_of_shots=SHOT_COUNT)
 runtime = result["execution_time_in_seconds"]
 print("Ran in {} seconds".format(runtime))
+print(qasm)
 
-if QUBIT_COUNT > 8:
+if QUBIT_COUNT > 15:
     print("No plot because of large qubit count")
     histogram_list = interpret_results(result, False)
 else:
     histogram_list = interpret_results(result)
 
 for h in histogram_list:
-    if h[0] == SEARCH_TARGET_1_HEX:
-        print("Probability of search target 1, hex representation '{}': {}".format(SEARCH_TARGET_1_HEX, h[1]))
-    if h[0] == SEARCH_TARGET_2_HEX:
-        print("Probability of search target 2, hex representation '{}': {}".format(SEARCH_TARGET_2_HEX, h[1]))
+    name, prob = h[0], h[1]
+    for s in range(len(SEARCH_TARGETS)):
+        if name == SEARCH_TARGET_HEXES[s]:
+            print("Probability of search target {}, hex representation '{}': {}".format(s+1,
+                                                                                        SEARCH_TARGET_HEXES[s],
+                                                                                        prob))

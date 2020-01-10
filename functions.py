@@ -126,7 +126,8 @@ def interpret_results(result_dict, plot=True):
             elif b[1] != 0:
                 raise ValueError("\tNonzero result from 'impossible' measurement:\n"
                                  "\tColumn {} has fraction {}. This means not all control bits were 0!".format(b[0], b[1]))
+        plt.xticks(fontsize=6, rotation=45, ha="right")
         plt.title("Measurements, q[0] is the last bit, control qubits omitted")
-        plt.show()
+        plt.show(dpi=1000)
 
     return ordered_bars
