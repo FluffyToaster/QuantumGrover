@@ -9,6 +9,7 @@ SEARCH_TARGETS = [
 SEARCH_TARGET_HEXES = list(map(lambda s: hex(int(s[::-1], 2))[2:],
                                SEARCH_TARGETS))
 
+OPTIMISE = True
 
 # number of shots to approximate the result of the program
 # it's recommended to use a small shot count for many data qubits

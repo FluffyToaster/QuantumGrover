@@ -1,5 +1,4 @@
 from settings import *
-import time
 
 optimisations = {
     "HXH": "Z",
@@ -10,8 +9,52 @@ optimisations = {
 largest_opt = 3
 
 
-def optimise(qasm):
-    start = time.time_ns()
+def remove_gate_from_line(local_qasm_line, gate_symbol, qubit_index):
+    # if gate applied to single qubit, remove gate call entirely
+    if "{} q[{}]".format(gate_symbol, qubit_index) in local_qasm_line:
+        # if there is a parallel bar right
+        local_qasm_line = local_qasm_line.replace("{} q[{}] | ".format(gate_symbol, qubit_index), "")
+        # if there is a parallel bar left
+        local_qasm_line = local_qasm_line.replace(" | {} q[{}]".format(gate_symbol, qubit_index), "")
+        # if it is not parellelized
+        local_qasm_line = local_qasm_line.replace("{} q[{}]".format(gate_symbol, qubit_index), "")
+
+    # else remove just the number
+    else:
+        local_qasm_line = local_qasm_line.replace(",{}".format(qubit_index), "")
+        local_qasm_line = local_qasm_line.replace("{},".format(qubit_index), "")
+
+    return local_qasm_line
+
+
+def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
+    # if another operation is already called on this qubit, we have to put the new gate on a new line
+    if str(qubit_index) in local_qasm_line:
+        local_qasm_line += "\n{} q[{}]\n".format(gate_symbol, qubit_index)
+
+    # if the line is not empty, we need to consider what's already present
+    elif local_qasm_line != "":
+        # a bracket indicates this line is parallelized with the { gate | gate | gate } syntax
+        if "{" in local_qasm_line:
+            # remove } from the line and add it back at the end
+            local_qasm_line = local_qasm_line.rstrip("}\n") + \
+                              " | " + \
+                              "{} q[{}]".format(gate_symbol, qubit_index) + \
+                              "}\n"
+
+        # no bracket means we have to add the parallelization syntax ourselves
+        else:
+            local_qasm_line = "{" + local_qasm_line.replace("\n", "") + \
+                              " | " + \
+                              "{} q[{}]".format(gate_symbol, qubit_index) + "}\n"
+
+    # else, if the line IS empty, we can just put this gate in directly
+    else:
+        local_qasm_line = "{} q[{}]\n".format(gate_symbol, qubit_index)
+    return local_qasm_line
+
+
+def optimise(qasm, mode="speed"):
     qasm_lines = qasm.split("\n")
     gates_applied = []
     for i in range(QUBIT_COUNT):
@@ -22,7 +65,7 @@ def optimise(qasm):
         if len(line) == 0:
             continue
 
-        gate = line.split()[0]
+        gate = line.split()[0].lstrip("{")
         if gate not in ["H", "X", "Y", "Z"]:
             gate = "_"
 
@@ -54,73 +97,94 @@ def optimise(qasm):
                 skip_counter -= 1
                 continue
 
-            for offset in range(0, largest_opt - 1):
-                next_gates = "".join(map(lambda _: _[1], gates[g:g+largest_opt-offset]))
-                if next_gates in optimisations:
-                    opt = optimisations[next_gates]
-                    # add optimised gate, remove original line references
-                    line_indices = list(map(lambda _: _[0], gates[g:g+largest_opt-offset]))
-                    print("Optimising {} for {} on lines {}".format(next_gates, opt, line_indices))
+            if mode == "speed":
+                for offset in range(0, largest_opt - 1):
+                    next_gates = "".join(map(lambda _: _[1], gates[g:g+largest_opt-offset]))
+                    if next_gates in optimisations:
+                        replacement = optimisations[next_gates]
 
-                    for l in line_indices:
-                        edit_line = qasm_lines[l]
-                        if "," not in edit_line:
-                            # if gate applied to single qubit, remove altogether
-                            edit_line = ""
-                        else:
-                            # remove number
-                            edit_line = edit_line.replace("{}".format(qubit), "")
-                            # fix loose commas
-                            edit_line = edit_line.replace(",,", ",")
-                            edit_line = edit_line.replace(",]", "]")
-                            edit_line = edit_line.replace("[,", "[")
+                        line_indices = list(map(lambda _: _[0], gates[g:g+largest_opt-offset]))
+                        # first, remove all gates that are to be replaced
+                        for idx, line_number in enumerate(line_indices):
+                            qasm_lines[line_number] = remove_gate_from_line(qasm_lines[line_number],
+                                                                            next_gates[idx],
+                                                                            qubit)
 
-                        qasm_lines[l] = edit_line
+                        # add replacement gate to first line index
+                        # unless there is no replacement gate, of course
+                        if replacement != "":
+                            qasm_lines[line_indices[0]] = add_gate_to_line(qasm_lines[line_indices[0]],
+                                                                           replacement,
+                                                                           qubit)
 
-                    # add replacement gate to first line index
-                    # unless there is no replacement gate, of course
-                    if opt != "":
-                        if qasm_lines[line_indices[0]] != "":
-                            qasm_lines[line_indices[0]] = "{" + qasm_lines[line_indices[0]] + " | " + "{} q[{}]".format(opt, qubit) + "}\n"
-                        else:
-                            qasm_lines[line_indices[0]] += "{} q[{}]".format(opt, qubit)
+                        # ensure we skip a few gates
+                        skip_counter += len(next_gates) - 1
 
-                    # ensure we skip a few gates
-                    skip_counter += len(next_gates) - 1
+            elif mode == "style":
+                # check if we can shift left to align with other gates
+                current_line, current_gate = gates[g]
+                prev_line = current_line - 1
 
-            # check if we can shift left to align with other gates
-            current_line, current_gate = gates[g]
-            prev_line = current_line - 1
-            if current_gate in ["H", "X", "Y", "Z"] \
-                    and str(qubit) not in qasm_lines[prev_line]:
-                # remove from current line
-                edit_line = qasm_lines[current_line]
-                if "{} q[{}]" in edit_line:
-                    # if gate applied to single qubit, remove altogether
-                    edit_line = edit_line.replace("{} q[{}] | ".format(current_gate, qubit), "")
-                    edit_line = edit_line.replace(" | {} q[{}]".format(current_gate, qubit), "")
+                # we obviously can't shift a toffoli control
+                if "Toffoli" in qasm_lines[current_line]:
+                    continue
+
+                # if previous line has a Toffoli bar, don't parellelize for style purposes
+                if "Toffoli" in qasm_lines[prev_line]:
+                    continue
+
+                # if this or the previous line has a break statement, no shifting possible
+                if current_gate == "_" or (gates[g - 1][1] == "_" and gates[g - 1][0] == prev_line):
+                    continue
+
+                if qasm_lines[prev_line] == "":
+                    continue
+
+                # having passed these checks, we can try to actually shift
+                if current_gate in ["H", "X", "Y", "Z"] and str(qubit) not in qasm_lines[prev_line]:
+                    # remove from current line
+                    qasm_lines[current_line] = remove_gate_from_line(qasm_lines[current_line], current_gate, qubit)
+
+                    # add to left
+                    qasm_lines[prev_line] = add_gate_to_line(qasm_lines[prev_line], current_gate, qubit)
+
+    qasm_lines = list(filter(lambda x:  x != "" and x != "{}", qasm_lines))
+    return "\n".join(qasm_lines)
+
+
+def clean_code(qasm):
+    qasm_lines = qasm.split("\n")
+    for idx in range(len(qasm_lines)):
+        line = qasm_lines[idx]
+        gate_dict = {}
+        new_line = ""
+        if "Toffoli" not in line and ("{" in line or "," in line):
+            line = line.strip("{}")
+            elements = line.split("|")
+            for e in elements:
+                gate, target = e.split()
+                indices = list(map(int, target.strip("q[]").split(",")))
+                if gate not in gate_dict:
+                    gate_dict[gate] = indices
                 else:
-                    # remove number
-                    edit_line = edit_line.replace(",{}".format(qubit), "")
-                    edit_line = edit_line.replace("{},".format(qubit), "")
+                    gate_dict[gate] += indices
 
-                qasm_lines[current_line] = edit_line
-
-                # add to left
-                if qasm_lines[prev_line] != "":
-                    if "{" not in qasm_lines[prev_line]:
-                        qasm_lines[prev_line] = "{" + qasm_lines[prev_line].replace("\n", "") + \
-                                                       " | " + \
-                                                       "{} q[{}]".format(current_gate, qubit) + "}\n"
-                    else:
-                        qasm_lines[prev_line] = qasm_lines[prev_line].replace("}\n", "") + \
-                                                " | " + \
-                                                "{} q[{}]".format(current_gate, qubit) + "}\n"
+            parallel = len(gate_dict.keys()) > 1
+            if parallel:
+                new_line += "{ "
+            for gate, indices in gate_dict.items():
+                if max(indices) - min(indices) + 1 == len(indices) > 1:
+                    new_line += "{} q[{}:{}]".format(gate, min(indices), max(indices))
                 else:
-                    qasm_lines[prev_line] = "{} q[{}]\n".format(current_gate, qubit)
+                    new_line += "{} q[{}]".format(gate, ",".join(map(str, indices)))
+                new_line += " | "
 
+            new_line = new_line[:-3]
+            if parallel:
+                new_line += " }"
+        else:
+            new_line = line
 
+        qasm_lines[idx] = new_line
 
-    end = time.time_ns()
-    print("Optimised in {} ms".format((end - start) / 1000000))
     return "\n".join(qasm_lines)
