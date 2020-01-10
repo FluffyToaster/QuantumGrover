@@ -67,10 +67,13 @@ def oracle():
 
     Returns: Valid QASM to append to the program
     """
-    local_qasm = ""
+    local_qasm = "X q["
     for i in range(DATA_QUBITS):
         if SEARCH_TARGET[i] == "0":
-            local_qasm += "X q[{}]\n".format(i)
+            local_qasm += str(i) + ","
+
+    # remove last comma and add closing bracket
+    local_qasm = local_qasm[:-1] + "]\n"
     return local_qasm
 
 
