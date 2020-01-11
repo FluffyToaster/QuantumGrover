@@ -41,13 +41,7 @@ backend = qi.get_backend_type_by_name('QX single-node simulator')
 print("Executing QASM code ({} instructions, {} qubits, {} shots)".format(qasm.count("\n"), QUBIT_COUNT, SHOT_COUNT))
 
 if OPTIMISE:
-    for i in range(3):
-        qasm = optimise(qasm, mode="speed")
-    for i in range(6):
-        qasm = optimise(qasm, mode="style")
-    qasm = clean_code(qasm)
-    print(qasm)
-    exit()
+    qasm = apply_optimisations(qasm)
 
 result = qi.execute_qasm(qasm, backend_type=backend, number_of_shots=SHOT_COUNT)
 runtime = result["execution_time_in_seconds"]

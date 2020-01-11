@@ -9,15 +9,58 @@ optimisations = {
 largest_opt = 3
 
 
+def apply_optimisations(qasm):
+    """
+    Apply 3 types of optimisation to the given QASM code:
+        Combine groups of gates, such as H-X-H, to faster equivalent gates, Z in this case.
+        Shift gates to be executed in parallel.
+        Clean QASM code itself (q[1,2,3] becomes q[1:3])
+
+    Args:
+        qasm: Valid QASM code to optimise
+
+    Returns: A _equivalent_ piece of QASM with optimisations applied
+    """
+
+    # run "speed" mode until QASM does not change
+    prev_qasm = ""
+    while prev_qasm != qasm:
+        prev_qasm = qasm[:]
+        qasm = optimise(qasm, mode="speed")
+
+    # run "style" mode until QASM does not change
+    prev_qasm = ""
+    while prev_qasm != qasm:
+        prev_qasm = qasm[:]
+        qasm = optimise(qasm, mode="style")
+
+    # tidy up "ugly" optimised code
+    qasm = clean_code(qasm)
+
+    return qasm
+
+
 def remove_gate_from_line(local_qasm_line, gate_symbol, qubit_index):
+    """
+    Removes the application of a specific gate on a specific qubit.
+
+    Args:
+        local_qasm_line: The line from which this call should be removed.
+        gate_symbol: The symbol representing the gate
+        qubit_index: The index of the target qubit
+
+    Returns: The same line of QASM, with the gate removed.
+    """
+
     # if gate applied to single qubit, remove gate call entirely
-    if "{} q[{}]".format(gate_symbol, qubit_index) in local_qasm_line:
+    single_application = "{} q[{}]".format(gate_symbol, qubit_index)
+    if single_application in local_qasm_line:
         # if there is a parallel bar right
-        local_qasm_line = local_qasm_line.replace("{} q[{}] | ".format(gate_symbol, qubit_index), "")
-        # if there is a parallel bar left
-        local_qasm_line = local_qasm_line.replace(" | {} q[{}]".format(gate_symbol, qubit_index), "")
-        # if it is not parellelized
-        local_qasm_line = local_qasm_line.replace("{} q[{}]".format(gate_symbol, qubit_index), "")
+        local_qasm_line = local_qasm_line.replace(single_application + " | ", "")
+        # else: if there is a parallel bar left
+        local_qasm_line = local_qasm_line.replace(" | " + single_application, "")
+        # else: if it is not parellelized at all
+        local_qasm_line = local_qasm_line.replace(single_application, "")
 
     # else remove just the number
     else:
@@ -28,6 +71,16 @@ def remove_gate_from_line(local_qasm_line, gate_symbol, qubit_index):
 
 
 def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
+    """
+    Add in parallel the application of a gate on a qubit.
+    Args:
+        local_qasm_line: The existing line of QASM to add the gate in.
+        gate_symbol: The symbol representing the gate.
+        qubit_index: The index of the target qubit.
+
+    Returns: The same line of QASM with the gate added.
+    """
+
     # if another operation is already called on this qubit, we have to put the new gate on a new line
     if str(qubit_index) in local_qasm_line:
         local_qasm_line += "\n{} q[{}]\n".format(gate_symbol, qubit_index)
@@ -44,7 +97,7 @@ def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
 
         # no bracket means we have to add the parallelization syntax ourselves
         else:
-            local_qasm_line = "{" + local_qasm_line.replace("\n", "") + \
+            local_qasm_line = "{" + local_qasm_line.rstrip("\n") + \
                               " | " + \
                               "{} q[{}]".format(gate_symbol, qubit_index) + "}\n"
 
@@ -55,6 +108,18 @@ def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
 
 
 def optimise(qasm, mode="speed"):
+    """
+    Apply a single pass of performance-oriented optimisations to the given QASM.
+
+    Args:
+        qasm: A valid QASM program to optimise.
+        mode: Setting that determines the type of optimisation:
+            "speed" -> combine gates into equivalent smaller gates
+            "style" -> parallelize gates for speedup and aesthetics
+
+    Returns: Functionally the same QASM code, with one run of optimisations applied.
+    """
+
     qasm_lines = qasm.split("\n")
     gates_applied = []
     for i in range(QUBIT_COUNT):
@@ -148,11 +213,23 @@ def optimise(qasm, mode="speed"):
                     # add to left
                     qasm_lines[prev_line] = add_gate_to_line(qasm_lines[prev_line], current_gate, qubit)
 
-    qasm_lines = list(filter(lambda x:  x != "" and x != "{}", qasm_lines))
-    return "\n".join(qasm_lines)
+    # remove blank lines
+    qasm_lines = list(filter(lambda x: x not in ["", "{}", " "], qasm_lines))
+    return "\n".join(qasm_lines).replace("\n\n", "\n")
 
 
 def clean_code(qasm):
+    """
+    Clean given QASM by rewriting each line to a more readable format.
+    For example, "{ X q[0] | H q[3,4,5] | X q[1] | X q[2] }"
+    Would become "{ X q[0:2] | H q[3:5]"
+
+    Args:
+        qasm: Valid QASM code to clean
+
+    Returns: The same QASM code with improved formatting.
+    """
+
     qasm_lines = qasm.split("\n")
     for idx in range(len(qasm_lines)):
         line = qasm_lines[idx]

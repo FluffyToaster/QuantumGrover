@@ -16,35 +16,54 @@ def fill(character):
 
 def n_size_cnot(n):
     """
-    Generate a CNOT with n-1 control bits
+    Generate a CNOT with n control bits.
+    It is assumed the control bits have indices [0:n-1],
+    and the target bit is at index [n].
+
     Args:
-        n: The number of data bits
+        n: The number of control bits
 
     Returns: Valid QASM to append to the program
     """
-    if n == 2:
-        local_qasm = "CNOT q[0],q[1]\n"
-    elif n == 3:
-        local_qasm = "Toffoli q[0],q[1],q[2]\n"
-    elif n >= 4:
-        gates_to_and = list(range(n - 1))
-        control_count = 0
-        gate_list = []
-        while len(gates_to_and) > 0:
-            a, b = gates_to_and[:2]
-            if len(gates_to_and) == 2:
-                c = n - 1
-                gates_to_and = []
-            else:
-                c = n + control_count
-                control_count += 1
-                gates_to_and = gates_to_and[2:] + [c]
-            gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, c))
 
+    if n == 1:
+        local_qasm = "CNOT q[0],q[1]\n"
+    elif n == 2:
+        local_qasm = "Toffoli q[0],q[1],q[2]\n"
+    else:
+        # for n > 2, there is no direct instruction in QASM, so we must generate an equivalent circuit
+        # the core idea of a large CNOT is that we must AND-gate together all the control bits
+        # we do this with Toffoli gates, and store the result on ancillary qubits
+
+        # we keep a list of all the bits that should be AND-ed together
+        bits_to_and = list(range(n))
+        ancillary_count = 0
+
+        # make a list of all the Toffoli gates to eventually write to the program
+        gate_list = []
+
+        # we will continue looping until all bits are and-ed together
+        while len(bits_to_and) > 0:
+            # take the first two
+            a, b = bits_to_and[:2]
+            # if there are no other gates remaining, we're almost done!
+            # just combine these 2 in a Toffoli...
+            # ...which targets the global "target bit" of this n-CNOT
+            if len(bits_to_and) == 2:
+                target = n
+                bits_to_and = []
+
+            # the default case is to write the result to an ancillary bit
+            else:
+                target = n + 1 + ancillary_count
+                ancillary_count += 1
+                bits_to_and = bits_to_and[2:] + [target]
+
+            gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, target))
+
+        # Apply the complete list of gates in reverse after the target is flipped
         gate_list = gate_list + gate_list[-2::-1]
         local_qasm = "\n".join(gate_list) + "\n"
-    else:
-        raise ValueError("Toffoli size not supported: {}".format(n))
 
     return local_qasm
 
@@ -56,7 +75,7 @@ def cnot_pillar():
     Returns: Valid QASM to append to the program
     """
     local_qasm = "H q[{}]\n".format(DATA_QUBITS - 1)
-    local_qasm += n_size_cnot(DATA_QUBITS)
+    local_qasm += n_size_cnot(DATA_QUBITS - 1)
     local_qasm += "H q[{}]\n".format(DATA_QUBITS - 1)
     return local_qasm
 
