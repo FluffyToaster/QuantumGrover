@@ -1,4 +1,6 @@
 from settings import *
+# from bruteforcer import *
+# optimisations = generate_optimisation_dict()
 
 optimisations = {
     "HXH": "Z",
@@ -82,6 +84,7 @@ def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
     """
 
     # if another operation is already called on this qubit, we have to put the new gate on a new line
+    # TODO investigate if this breaks for QUBIT_COUNT > 9?
     if str(qubit_index) in local_qasm_line:
         local_qasm_line += "\n{} q[{}]\n".format(gate_symbol, qubit_index)
 

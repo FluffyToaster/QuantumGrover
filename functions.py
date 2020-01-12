@@ -159,11 +159,12 @@ def interpret_results(result_dict, plot=True):
             # if a result is returned where some ancillary bits were not zero, we have a problem
             elif b[1] != 0:
                 raise ValueError("\tNonzero result from 'impossible' measurement:\n"
-                                 "\tColumn {} has fraction {}. This means not all control bits were 0!".format(b[0], b[1]))
+                                 "\tColumn {} has fraction {}. This means not all control bits were 0!".format(b[0],
+                                                                                                               b[1]))
 
         # set styling for the x-axis markers
         plt.xticks(fontsize=6, rotation=45, ha="right")
-        plt.title("Measurements, q[0] is the last bit, control qubits omitted")
+        plt.title("Measurements, q[0] is the last bit, ancillary qubits omitted")
         plt.show()
 
     return ordered_bars
