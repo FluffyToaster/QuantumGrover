@@ -10,7 +10,9 @@ def fill(character):
 
     Returns: Valid QASM to append to the program
     """
-    indices = ",".join(map(str,range(DATA_QUBITS)))
+    # create a list of the qubit indices that need the gate applied
+    indices = ",".join(map(str, range(DATA_QUBITS)))
+
     return "{} q[{}]\n".format(character, indices)
 
 
@@ -33,7 +35,7 @@ def n_size_cnot(n):
     else:
         # for n > 2, there is no direct instruction in QASM, so we must generate an equivalent circuit
         # the core idea of a large CNOT is that we must AND-gate together all the control bits
-        # we do this with Toffoli gates, and store the result on ancillary qubits
+        # we do this with Toffoli gates, and store the result of each Toffoli on ancillary qubits
 
         # we keep a list of all the bits that should be AND-ed together
         bits_to_and = list(range(n))
@@ -46,7 +48,7 @@ def n_size_cnot(n):
         while len(bits_to_and) > 0:
             # take the first two
             a, b = bits_to_and[:2]
-            # if there are no other gates remaining, we're almost done!
+            # if these are the only two elements to AND, we're almost done!
             # just combine these 2 in a Toffoli...
             # ...which targets the global "target bit" of this n-CNOT
             if len(bits_to_and) == 2:
@@ -57,11 +59,13 @@ def n_size_cnot(n):
             else:
                 target = n + 1 + ancillary_count
                 ancillary_count += 1
+                # remove the used qubits from the list of bits to AND
                 bits_to_and = bits_to_and[2:] + [target]
 
             gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, target))
 
         # Apply the complete list of gates in reverse after the target is flipped
+        # This undoes all operations on the ancillary bits (so they remain 0)
         gate_list = gate_list + gate_list[-2::-1]
         local_qasm = "\n".join(gate_list) + "\n"
 
@@ -111,6 +115,9 @@ def int_to_bits(int_str):
 
     Returns: A string of 0's and 1's
     """
+    # convert to an integer, then generate the binary string
+    # remove the "0b" prefix from the binary string
+    # then pad (using zfill) with 0's
     return str(bin(int(int_str)))[2:].zfill(QUBIT_COUNT)
 
 
@@ -124,11 +131,15 @@ def interpret_results(result_dict, plot=True):
 
     Returns: Parsed result
     """
+
     num_of_measurements = 2 ** QUBIT_COUNT
+
+    # we still store the histogram bars in here, and later sort them in ascending order
     ordered_bars = [None for _ in range(num_of_measurements)]
 
     for i in range(num_of_measurements):
         # find result in dictionary and add to list of bars
+        # zero-valued bars don't show up in the dictionary, hence the try-except
         try:
             bar = result_dict["histogram"][str(i)]
         except KeyError:
@@ -141,13 +152,18 @@ def interpret_results(result_dict, plot=True):
 
     if plot:
         for b in ordered_bars:
+            # check if the given bar has 0's for all the ancillary bits
+            # if it does not, we assume it is irrelevant for the histogram, so we don't plot it
             if int(b[0], 16) < 2**DATA_QUBITS:
-                plt.bar(*b)
+                plt.bar(b[0], b[1])
+            # if a result is returned where some ancillary bits were not zero, we have a problem
             elif b[1] != 0:
                 raise ValueError("\tNonzero result from 'impossible' measurement:\n"
                                  "\tColumn {} has fraction {}. This means not all control bits were 0!".format(b[0], b[1]))
+
+        # set styling for the x-axis markers
         plt.xticks(fontsize=6, rotation=45, ha="right")
         plt.title("Measurements, q[0] is the last bit, control qubits omitted")
-        plt.show(dpi=1000)
+        plt.show()
 
     return ordered_bars
