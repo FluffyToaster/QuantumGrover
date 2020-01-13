@@ -3,12 +3,18 @@ from settings import *
 # optimisations = generate_optimisation_dict()
 
 optimisations = {
-    "HXH": "Z",
+    # "HXH": "Z",
     "HH": "",
-    "XX": "",
-    "ZX": "Y"
+    # "XX": "",
+    # "ZX": "Y"
 }
 largest_opt = 3
+
+forbidden = [
+    "Toffoli",
+    "CNOT",
+    "CR"
+]
 
 
 def apply_optimisations(qasm):
@@ -61,13 +67,16 @@ def remove_gate_from_line(local_qasm_line, gate_symbol, qubit_index):
         local_qasm_line = local_qasm_line.replace(single_application + " | ", "")
         # else: if there is a parallel bar left
         local_qasm_line = local_qasm_line.replace(" | " + single_application, "")
+        # else: if it is the only gate in parallelized brackets
+        local_qasm_line = local_qasm_line.replace("{" + single_application + "}", "")
         # else: if it is not parellelized at all
         local_qasm_line = local_qasm_line.replace(single_application, "")
 
     # else remove just the number
     else:
-        local_qasm_line = local_qasm_line.replace(",{}".format(qubit_index), "")
-        local_qasm_line = local_qasm_line.replace("{},".format(qubit_index), "")
+        local_qasm_line = local_qasm_line.replace(",{},".format(qubit_index), ",")
+        local_qasm_line = local_qasm_line.replace("[{},".format(qubit_index), "[")
+        local_qasm_line = local_qasm_line.replace(",{}]".format(qubit_index), "]")
 
     return local_qasm_line
 
@@ -85,7 +94,10 @@ def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
 
     # if another operation is already called on this qubit, we have to put the new gate on a new line
     # TODO investigate if this breaks for QUBIT_COUNT > 9?
-    if str(qubit_index) in local_qasm_line:
+    if "[" + str(qubit_index) + "]" in local_qasm_line \
+            or "[" + str(qubit_index) + "," in local_qasm_line \
+            or "," + str(qubit_index) + "," in local_qasm_line \
+            or "," + str(qubit_index) + "]" in local_qasm_line:
         local_qasm_line += "\n{} q[{}]\n".format(gate_symbol, qubit_index)
 
     # if the line is not empty, we need to consider what's already present
@@ -93,7 +105,7 @@ def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
         # a bracket indicates this line is parallelized with the { gate | gate | gate } syntax
         if "{" in local_qasm_line:
             # remove } from the line and add it back at the end
-            local_qasm_line = local_qasm_line.rstrip("}\n") + \
+            local_qasm_line = local_qasm_line.rstrip("}| \n") + \
                               " | " + \
                               "{} q[{}]".format(gate_symbol, qubit_index) + \
                               "}\n"
@@ -138,7 +150,7 @@ def optimise(qasm, mode="speed"):
             gate = "_"
 
         if "[" in line:
-            if "Toffoli" not in line:
+            if not any(f in line for f in forbidden):
                 qubit_string = line[line.index("[") + 1:line.index("]")]
                 if ":" in qubit_string:
                     affected_qubits = list(range(int(qubit_string.split(":")[0]),
@@ -149,7 +161,13 @@ def optimise(qasm, mode="speed"):
                     affected_qubits = [int(qubit_string)]
             else:
                 qs = line.split()[1].split(",")
-                affected_qubits = map(lambda x: int(x[2]), qs)
+
+                # add rotation operators here
+                if "CR" in line:
+                    # if CR, the last element is not a qubit, but a rotation angle!
+                    qs = qs[:-1]
+
+                affected_qubits = map(lambda x: int(x.strip("q[]")), qs)
 
             for a in affected_qubits:
                 gates_applied[a].append((q, gate))
@@ -186,19 +204,21 @@ def optimise(qasm, mode="speed"):
                                                                            qubit)
 
                         # ensure we skip a few gates
-                        skip_counter += len(next_gates) - 1
+                        skip_counter += len(next_gates)
 
             elif mode == "style":
                 # check if we can shift left to align with other gates
                 current_line, current_gate = gates[g]
                 prev_line = current_line - 1
 
-                # we obviously can't shift a toffoli control
-                if "Toffoli" in qasm_lines[current_line]:
-                    continue
-
-                # if previous line has a Toffoli bar, don't parellelize for style purposes
-                if "Toffoli" in qasm_lines[prev_line]:
+                # # we obviously can't shift a toffoli control
+                # if "Toffoli" in qasm_lines[current_line]:
+                #     continue
+                #
+                # # if previous line has a Toffoli bar, don't parellelize for style purposes
+                # if "Toffoli" in qasm_lines[prev_line]:
+                #     continue
+                if any(f in qasm_lines[current_line] or f in qasm_lines[prev_line] for f in forbidden):
                     continue
 
                 # if this or the previous line has a break statement, no shifting possible
@@ -212,9 +232,12 @@ def optimise(qasm, mode="speed"):
                 if current_gate in ["H", "X", "Y", "Z"] and str(qubit) not in qasm_lines[prev_line]:
                     # remove from current line
                     qasm_lines[current_line] = remove_gate_from_line(qasm_lines[current_line], current_gate, qubit)
-
                     # add to left
                     qasm_lines[prev_line] = add_gate_to_line(qasm_lines[prev_line], current_gate, qubit)
+
+                    if "{ |" in qasm_lines[prev_line]:
+                        print("....................................................NANI")
+                        print(current_line, current_gate, qubit)
 
     # remove blank lines
     qasm_lines = list(filter(lambda x: x not in ["", "{}", " "], qasm_lines))
@@ -238,7 +261,7 @@ def clean_code(qasm):
         line = qasm_lines[idx]
         gate_dict = {}
         new_line = ""
-        if "Toffoli" not in line and ("{" in line or "," in line):
+        if "Toffoli" not in line and "CR" not in line and "CNOT" not in line and ("{" in line or "," in line):
             line = line.strip("{}")
             elements = line.split("|")
             for e in elements:

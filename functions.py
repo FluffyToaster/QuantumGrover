@@ -1,5 +1,20 @@
 from settings import *
 import matplotlib.pyplot as plt
+import math
+
+
+def apply(gate, qubit):
+    """
+    Simply apply a gate to a single qubit
+
+    Args:
+        gate: The gate to apply
+        qubit: The target qubit
+
+    Returns: Valid QASM that represents this application
+
+    """
+    return "{} q[{}]\n".format(gate, qubit)
 
 
 def fill(character):
@@ -31,7 +46,10 @@ def n_size_cnot(n):
     if n == 1:
         local_qasm = "CNOT q[0],q[1]\n"
     elif n == 2:
-        local_qasm = "Toffoli q[0],q[1],q[2]\n"
+        if USE_ALT_TOFFOLI:
+            local_qasm = alternative_toffoli(0, 1, 2)
+        else:
+            local_qasm = "Toffoli q[0],q[1],q[2]\n"
     else:
         # for n > 2, there is no direct instruction in QASM, so we must generate an equivalent circuit
         # the core idea of a large CNOT is that we must AND-gate together all the control bits
@@ -62,12 +80,90 @@ def n_size_cnot(n):
                 # remove the used qubits from the list of bits to AND
                 bits_to_and = bits_to_and[2:] + [target]
 
-            gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, target))
+            if USE_ALT_TOFFOLI:
+                gate_list.append(alternative_toffoli(a, b, target))
+            else:
+                gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, target))
 
         # Apply the complete list of gates in reverse after the target is flipped
         # This undoes all operations on the ancillary bits (so they remain 0)
         gate_list = gate_list + gate_list[-2::-1]
         local_qasm = "\n".join(gate_list) + "\n"
+
+    return local_qasm
+
+
+def n_size_controlled_rotation(n, start_n, target, angle):
+    """
+    Generate a controlled rotation with n control bits without using Toffoli gates.
+    It is assumed the control bits have indices [start_n : start_n + n-1].
+
+    Args:
+        n: The number of control bits
+        start_n: The first index that is a control bit
+        target: The target bit index
+        angle: The angle in radians by which to shift the phase
+               An angle of pi gives an H-Z-H aka X gate
+               An angle of pi/2 gives an H-S-H gate
+               An angle of pi/4 gives an H-T-H gate
+               Etc.
+
+    Returns: Valid QASM to append to the program
+    """
+    local_qasm = ""
+
+    if n == 1:
+        # Simply a CROT with the given angle
+        local_qasm += apply("H", target)
+        local_qasm += "CR q[{}],q[{}],{}\n".format(start_n, target, angle)
+        local_qasm += apply("H", target)
+    else:
+        # V gate using the lowest control bit
+        local_qasm += n_size_controlled_rotation(1, start_n + n - 1, target, angle / 2)
+
+        # n-1 CNOT on highest bits (new_angle = angle)
+        local_qasm += n_size_controlled_rotation(n - 1, 0, start_n + n - 1, math.pi)
+
+        # V dagger gate on lowest two bits
+        local_qasm += n_size_controlled_rotation(1, start_n + n - 1, target, -angle / 2)
+
+        # n-1 CNOT on highest bits (new_angle = angle)
+        local_qasm += n_size_controlled_rotation(n - 1, 0, start_n + n - 1, math.pi)
+
+        # controlled V gate using highest as controls and lowest as target (new_angle = angle / 2)
+        local_qasm += n_size_controlled_rotation(n - 1, 0, target, angle / 2)
+
+    return local_qasm
+
+
+def alternative_toffoli(control_1, control_2, target):
+    """
+    Generate a circuit from 1 and 2 qubit gates that performs an operation equivalent to a Toffoli gate.
+
+    Args:
+        control_1: First control bit index
+        control_2: Second control bit index
+        target: Target bit index
+
+    Returns: Valid QASM that performs a CCNOT
+    """
+
+    local_qasm = ""
+    local_qasm += apply("H", target)
+    local_qasm += "CR q[{}],q[{}],{}\n".format(control_2, target, math.pi / 2)
+    local_qasm += apply("H", target)
+
+    local_qasm += "CNOT q[{}],q[{}]\n".format(control_1, control_2)
+
+    local_qasm += apply("H", target)
+    local_qasm += "CR q[{}],q[{}],{}\n".format(control_2, target, -math.pi / 2)
+    local_qasm += apply("H", target)
+
+    local_qasm += "CNOT q[{}],q[{}]\n".format(control_1, control_2)
+
+    local_qasm += apply("H", target)
+    local_qasm += "CR q[{}],q[{}],{}\n".format(control_1, target, math.pi / 2)
+    local_qasm += apply("H", target)
 
     return local_qasm
 
@@ -79,7 +175,10 @@ def cnot_pillar():
     Returns: Valid QASM to append to the program
     """
     local_qasm = "H q[{}]\n".format(DATA_QUBITS - 1)
-    local_qasm += n_size_cnot(DATA_QUBITS - 1)
+    if USE_CROT:
+        local_qasm += n_size_controlled_rotation(DATA_QUBITS - 1, 0, DATA_QUBITS - 1, math.pi)
+    else:
+        local_qasm += n_size_cnot(DATA_QUBITS - 1)
     local_qasm += "H q[{}]\n".format(DATA_QUBITS - 1)
     return local_qasm
 
