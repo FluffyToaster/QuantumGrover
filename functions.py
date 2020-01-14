@@ -31,7 +31,7 @@ def fill(character):
     return "{} q[{}]\n".format(character, indices)
 
 
-def n_size_cnot(n):
+def normal_n_size_cnot(n):
     """
     Generate a CNOT with n control bits.
     It is assumed the control bits have indices [0:n-1],
@@ -46,7 +46,7 @@ def n_size_cnot(n):
     if n == 1:
         local_qasm = "CNOT q[0],q[1]\n"
     elif n == 2:
-        if USE_ALT_TOFFOLI:
+        if MODE == "no toffoli":
             local_qasm = alternative_toffoli(0, 1, 2)
         else:
             local_qasm = "Toffoli q[0],q[1],q[2]\n"
@@ -80,7 +80,7 @@ def n_size_cnot(n):
                 # remove the used qubits from the list of bits to AND
                 bits_to_and = bits_to_and[2:] + [target]
 
-            if USE_ALT_TOFFOLI:
+            if MODE == "no toffoli":
                 gate_list.append(alternative_toffoli(a, b, target))
             else:
                 gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, target))
@@ -93,7 +93,7 @@ def n_size_cnot(n):
     return local_qasm
 
 
-def n_size_controlled_rotation(n, start_n, target, angle):
+def n_size_crot(n, start_n, target, angle):
     """
     Generate a controlled rotation with n control bits without using Toffoli gates.
     It is assumed the control bits have indices [start_n : start_n + n-1].
@@ -119,19 +119,19 @@ def n_size_controlled_rotation(n, start_n, target, angle):
         local_qasm += apply("H", target)
     else:
         # V gate using the lowest control bit
-        local_qasm += n_size_controlled_rotation(1, start_n + n - 1, target, angle / 2)
+        local_qasm += n_size_crot(1, start_n + n - 1, target, angle / 2)
 
         # n-1 CNOT on highest bits (new_angle = angle)
-        local_qasm += n_size_controlled_rotation(n - 1, 0, start_n + n - 1, math.pi)
+        local_qasm += n_size_crot(n - 1, 0, start_n + n - 1, math.pi)
 
         # V dagger gate on lowest two bits
-        local_qasm += n_size_controlled_rotation(1, start_n + n - 1, target, -angle / 2)
+        local_qasm += n_size_crot(1, start_n + n - 1, target, -angle / 2)
 
         # n-1 CNOT on highest bits (new_angle = angle)
-        local_qasm += n_size_controlled_rotation(n - 1, 0, start_n + n - 1, math.pi)
+        local_qasm += n_size_crot(n - 1, 0, start_n + n - 1, math.pi)
 
         # controlled V gate using highest as controls and lowest as target (new_angle = angle / 2)
-        local_qasm += n_size_controlled_rotation(n - 1, 0, target, angle / 2)
+        local_qasm += n_size_crot(n - 1, 0, target, angle / 2)
 
     return local_qasm
 
@@ -175,10 +175,12 @@ def cnot_pillar():
     Returns: Valid QASM to append to the program
     """
     local_qasm = "H q[{}]\n".format(DATA_QUBITS - 1)
-    if USE_CROT:
-        local_qasm += n_size_controlled_rotation(DATA_QUBITS - 1, 0, DATA_QUBITS - 1, math.pi)
-    else:
-        local_qasm += n_size_cnot(DATA_QUBITS - 1)
+    if MODE == "normal":
+        local_qasm += normal_n_size_cnot(DATA_QUBITS - 1)
+    elif MODE == "crot":
+        local_qasm += n_size_crot(DATA_QUBITS - 1, 0, DATA_QUBITS - 1, math.pi)
+    elif MODE == "fancy cnot":
+        local_qasm += fancy_cnot(DATA_QUBITS - 1)
     local_qasm += "H q[{}]\n".format(DATA_QUBITS - 1)
     return local_qasm
 
@@ -267,3 +269,71 @@ def interpret_results(result_dict, plot=True):
         plt.show()
 
     return ordered_bars
+
+
+def gray_code(n):
+    if n == 1:
+        return ["0", "1"]
+    else:
+        g_previous = gray_code(n - 1)
+        mirrored_paste = g_previous + g_previous[::-1]
+        g_current = mirrored_paste[:]
+        for i in range(2**n):
+            if i < 2**(n-1):
+                g_current[i] = g_current[i] + "0"
+            else:
+                g_current[i] = g_current[i] + "1"
+        return g_current
+
+
+def fancy_cnot(n):
+    """
+    Generate a circuit equivalent to an n-bit CNOT.
+    This avoids using Toffoli gates or ancillary bits.
+    Args:
+        n: Number of control bits
+
+    Returns: Valid QASM that represents a CNOT
+
+    """
+    gray_code_list = gray_code(n)[1:]
+    local_qasm = apply("H", n)
+
+    for i in range(len(gray_code_list)):
+        if i == 0:
+            local_qasm += "CR q[0],q[{}],{}\n".format(n, math.pi/(2**(n-1)))
+        else:
+            prev_gray = gray_code_list[i-1]
+            cur_gray = gray_code_list[i]
+
+            flip_idx = -1
+            for j in range(len(cur_gray)):
+                if cur_gray[j] != prev_gray[j]:
+                    flip_idx = j
+                    break
+
+            last_1_bit_cur = len(cur_gray) - 1 - cur_gray[::-1].index("1")
+            last_1_bit_prev = len(prev_gray) - 1 - prev_gray[::-1].index("1")
+
+            bit_a = flip_idx
+
+            if flip_idx == last_1_bit_cur:
+                bit_b = last_1_bit_prev
+            else:
+                bit_b = last_1_bit_cur
+
+            control_bit = min(bit_a, bit_b)
+            target_bit = max(bit_a, bit_b)
+
+            local_qasm += "CNOT q[{}],q[{}]\n".format(control_bit, target_bit)
+
+            parity = cur_gray.count("1") % 2
+            if parity == 0:
+                angle = -math.pi/(2**(n-1))
+            else:
+                angle = math.pi/(2**(n-1))
+
+            local_qasm += "CR q[{}],q[{}],{}\n".format(target_bit, n, angle)
+
+    local_qasm += apply("H", n)
+    return local_qasm

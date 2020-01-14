@@ -49,7 +49,7 @@ if OPTIMISE:
 
 print("Generated QASM in {} seconds".format(str(time.time() - start_generate)[:5]))
 print("Executing QASM code ({} instructions, {} qubits, {} shots)".format(qasm.count("\n"), QUBIT_COUNT, SHOT_COUNT))
-
+# print(qasm)
 result = qi.execute_qasm(qasm, backend_type=backend, number_of_shots=SHOT_COUNT)
 runtime = result["execution_time_in_seconds"]
 print("Ran on simulator in {} seconds".format(str(runtime)[:5]))
@@ -60,7 +60,6 @@ if QUBIT_COUNT > 15:
 else:
     histogram_list = interpret_results(result)
 
-print()
 non_target_prob = 0
 for h in histogram_list:
     name, prob = h[0], h[1]
