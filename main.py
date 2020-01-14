@@ -1,12 +1,17 @@
 from quantuminspire.credentials import enable_account
 from quantuminspire.api import QuantumInspireAPI
 from functions import *
+from optimiser import *
 import math
+import time
+
+start_login = time.time()
 
 enable_account("58957ea5a48a801eb5af6adcae7776126c122c9d")
 qi = QuantumInspireAPI()
+backend = qi.get_backend_type_by_name('QX single-node simulator')
 
-print("Logged in to QI account")
+print("Logged in to QI account ({} seconds)".format(str(time.time() - start_login)[:5]))
 
 qasm = """
 
@@ -15,6 +20,8 @@ version 1.0
 qubits {}
 
 """.format(QUBIT_COUNT)
+
+start_generate = time.time()
 
 # initialisation
 qasm += fill("H")
@@ -36,13 +43,16 @@ qasm += cnot_pillar()
 qasm += fill("X")
 qasm += fill("H")
 
-backend = qi.get_backend_type_by_name('QX single-node simulator')
 
+if OPTIMISE:
+    qasm = apply_optimisations(qasm)
+
+print("Generated QASM in {} seconds".format(str(time.time() - start_generate)[:5]))
 print("Executing QASM code ({} instructions, {} qubits, {} shots)".format(qasm.count("\n"), QUBIT_COUNT, SHOT_COUNT))
+
 result = qi.execute_qasm(qasm, backend_type=backend, number_of_shots=SHOT_COUNT)
 runtime = result["execution_time_in_seconds"]
-print("Ran in {} seconds".format(runtime))
-print(qasm)
+print("Ran on simulator in {} seconds".format(str(runtime)[:5]))
 
 if QUBIT_COUNT > 15:
     print("No plot because of large qubit count")
@@ -50,10 +60,20 @@ if QUBIT_COUNT > 15:
 else:
     histogram_list = interpret_results(result)
 
+print()
+non_target_prob = 0
 for h in histogram_list:
     name, prob = h[0], h[1]
+    is_target = False
     for s in range(len(SEARCH_TARGETS)):
         if name == SEARCH_TARGET_HEXES[s]:
-            print("Probability of search target {}, hex representation '{}': {}".format(s+1,
-                                                                                        SEARCH_TARGET_HEXES[s],
-                                                                                        prob))
+            is_target = True
+            print("Search target {}:".format(s+1))
+            print("\tBinary: '{}'".format(SEARCH_TARGETS[s]))
+            # print("\tHexadecimal: '{}'".format(SEARCH_TARGET_HEXES[s]))
+            print("\tProbability: {}".format(prob))
+            print()
+    if not is_target:
+        non_target_prob += prob
+
+print("Probability of any non-target is {}".format(round(non_target_prob,5)))
