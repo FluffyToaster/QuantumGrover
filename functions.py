@@ -17,21 +17,22 @@ def apply(gate, qubit):
     return "{} q[{}]\n".format(gate, qubit)
 
 
-def fill(character):
+def fill(character, data_qubits):
     """
     Apply a specific gate to all data qubits
     Args:
         character: The QASM gate to apply
+        data_qubits: The number of data qubits
 
     Returns: Valid QASM to append to the program
     """
     # create a list of the qubit indices that need the gate applied
-    indices = ",".join(map(str, range(DATA_QUBITS)))
+    indices = ",".join(map(str, range(data_qubits)))
 
     return "{} q[{}]\n".format(character, indices)
 
 
-def normal_n_size_cnot(n):
+def normal_n_size_cnot(n, mode):
     """
     Generate a CNOT with n control bits.
     It is assumed the control bits have indices [0:n-1],
@@ -39,6 +40,7 @@ def normal_n_size_cnot(n):
 
     Args:
         n: The number of control bits
+        mode: The method by which we will make CNOT gates
 
     Returns: Valid QASM to append to the program
     """
@@ -46,7 +48,7 @@ def normal_n_size_cnot(n):
     if n == 1:
         local_qasm = "CNOT q[0],q[1]\n"
     elif n == 2:
-        if MODE == "no toffoli":
+        if mode == "no toffoli":
             local_qasm = alternative_toffoli(0, 1, 2)
         else:
             local_qasm = "Toffoli q[0],q[1],q[2]\n"
@@ -80,7 +82,7 @@ def normal_n_size_cnot(n):
                 # remove the used qubits from the list of bits to AND
                 bits_to_and = bits_to_and[2:] + [target]
 
-            if MODE == "no toffoli":
+            if mode == "no toffoli":
                 gate_list.append(alternative_toffoli(a, b, target))
             else:
                 gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, target))
@@ -168,27 +170,30 @@ def alternative_toffoli(control_1, control_2, target):
     return local_qasm
 
 
-def cnot_pillar():
+def cnot_pillar(mode, data_qubits):
     """
     Generate a common structure that applies a Hadamard, CNOT, and Hadamard again to the lowest data bit
 
     Returns: Valid QASM to append to the program
     """
-    local_qasm = "H q[{}]\n".format(DATA_QUBITS - 1)
-    if MODE == "normal":
-        local_qasm += normal_n_size_cnot(DATA_QUBITS - 1)
-    elif MODE == "crot":
-        local_qasm += n_size_crot(DATA_QUBITS - 1, 0, DATA_QUBITS - 1, math.pi)
-    elif MODE == "fancy cnot":
-        local_qasm += fancy_cnot(DATA_QUBITS - 1)
-    local_qasm += "H q[{}]\n".format(DATA_QUBITS - 1)
+    local_qasm = "H q[{}]\n".format(data_qubits - 1)
+    if mode == "normal":
+        local_qasm += normal_n_size_cnot(data_qubits - 1)
+    elif mode == "crot":
+        local_qasm += n_size_crot(data_qubits - 1, 0, data_qubits - 1, math.pi)
+    elif mode == "fancy cnot":
+        local_qasm += fancy_cnot(data_qubits - 1)
+    local_qasm += "H q[{}]\n".format(data_qubits - 1)
     return local_qasm
 
 
-def oracle(search_term):
+def oracle(search_term, data_qubits):
     """
     Generate a common structure that is used in the oracle circuit.
     It flips all bits that correspond to a 0 in the search target.
+    Args:
+        search_term: The search term for which to generate an oracle
+        data_qubits: The number of data qubits
 
     Returns: Valid QASM to append to the program
     """
@@ -196,7 +201,7 @@ def oracle(search_term):
         return "\n"
 
     local_qasm = "X q["
-    for i in range(DATA_QUBITS):
+    for i in range(data_qubits):
         if search_term[i] == "0":
             local_qasm += str(i) + ","
 
@@ -205,7 +210,7 @@ def oracle(search_term):
     return local_qasm
 
 
-def int_to_bits(int_str):
+def int_to_bits(int_str, qubit_count):
     """
     Convert a number (possibly in string form) to a readable bit format.
     For example, the result '11', which means both qubits were measured as 1, is returned by the API as "3".
@@ -219,10 +224,10 @@ def int_to_bits(int_str):
     # convert to an integer, then generate the binary string
     # remove the "0b" prefix from the binary string
     # then pad (using zfill) with 0's
-    return str(bin(int(int_str)))[2:].zfill(QUBIT_COUNT)
+    return str(bin(int(int_str)))[2:].zfill(qubit_count)
 
 
-def interpret_results(result_dict, plot=True):
+def interpret_results(result_dict, qubit_count, data_qubits, plot=True):
     """
     Parse the result dictionary given by the API into a readable format, and plot it.
 
@@ -233,7 +238,7 @@ def interpret_results(result_dict, plot=True):
     Returns: Parsed result
     """
 
-    num_of_measurements = 2 ** QUBIT_COUNT
+    num_of_measurements = 2 ** qubit_count
 
     # we still store the histogram bars in here, and later sort them in ascending order
     ordered_bars = [None for _ in range(num_of_measurements)]
@@ -247,7 +252,7 @@ def interpret_results(result_dict, plot=True):
             bar = 0
 
         # generate corresponding binary name (so "11" instead of "3")
-        name = int_to_bits(i)
+        name = int_to_bits(i, qubit_count)
 
         ordered_bars[i] = (hex(int(name, 2))[2:], bar)
 
@@ -255,7 +260,7 @@ def interpret_results(result_dict, plot=True):
         for b in ordered_bars:
             # check if the given bar has 0's for all the ancillary bits
             # if it does not, we assume it is irrelevant for the histogram, so we don't plot it
-            if int(b[0], 16) < 2**DATA_QUBITS:
+            if int(b[0], 16) < 2 ** data_qubits:
                 plt.bar(b[0], b[1])
             # if a result is returned where some ancillary bits were not zero, we have a problem
             elif b[1] != 0:

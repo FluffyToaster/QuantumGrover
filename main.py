@@ -1,78 +1,30 @@
 from quantuminspire.credentials import enable_account
 from quantuminspire.api import QuantumInspireAPI
-from functions import *
-from optimiser import *
-import math
-import time
+from runner import *
 
 start_login = time.time()
-
 enable_account("58957ea5a48a801eb5af6adcae7776126c122c9d")
 qi = QuantumInspireAPI()
-backend = qi.get_backend_type_by_name('QX single-node simulator')
 
-print("Logged in to QI account ({} seconds)".format(str(time.time() - start_login)[:5]))
+print("Logged in to QI account ({} seconds)".format(str(time.time() - start_login)[:5]))\
 
-qasm = """
+SEARCH_TARGETS = [
+    "10101"[::-1],
+    "10100"[::-1],
+]
 
-version 1.0
+SHOT_COUNT = 10000
 
-qubits {}
+# whether to apply optimisation to our generated QASM
+# performance improvement of ~20-50%
+OPTIMISE = True
 
-""".format(QUBIT_COUNT)
+# MODES:
+#   - normal: use toffoli gates and ancillary bits for max speed
+#   - no toffoli: same as normal, but replace toffoli gates for 2-gate equivalent circuits. uses ancillary bits.
+#   - crot: no ancillary bits or toffoli gates, but scales with 3^n gates for n bits
+#   - fancy cnot: no ancillary bits or toffoli gates, scales 2^n
+MODE = "fancy cnot"
 
-start_generate = time.time()
+histogram_list, target_probs, non_target_prob, line_count, runtime = run_grover(qi, SEARCH_TARGETS, SHOT_COUNT, MODE)
 
-# initialisation
-qasm += fill("H")
-
-# looping grover
-iterations = int(math.pi * math.sqrt((2 ** DATA_QUBITS) / len(SEARCH_TARGETS)) / 4)
-qasm += ".grover_loop({})\n".format(iterations)
-
-# oracle
-for s in range(len(SEARCH_TARGETS)):
-    qasm += oracle(SEARCH_TARGETS[s])
-    qasm += cnot_pillar()
-    qasm += oracle(SEARCH_TARGETS[s])
-
-# diffusion
-qasm += fill("H")
-qasm += fill("X")
-qasm += cnot_pillar()
-qasm += fill("X")
-qasm += fill("H")
-
-
-if OPTIMISE:
-    qasm = apply_optimisations(qasm)
-
-print("Generated QASM in {} seconds".format(str(time.time() - start_generate)[:5]))
-print("Executing QASM code ({} instructions, {} qubits, {} shots)".format(qasm.count("\n"), QUBIT_COUNT, SHOT_COUNT))
-# print(qasm)
-result = qi.execute_qasm(qasm, backend_type=backend, number_of_shots=SHOT_COUNT)
-runtime = result["execution_time_in_seconds"]
-print("Ran on simulator in {} seconds".format(str(runtime)[:5]))
-
-if QUBIT_COUNT > 15:
-    print("No plot because of large qubit count")
-    histogram_list = interpret_results(result, False)
-else:
-    histogram_list = interpret_results(result)
-
-non_target_prob = 0
-for h in histogram_list:
-    name, prob = h[0], h[1]
-    is_target = False
-    for s in range(len(SEARCH_TARGETS)):
-        if name == SEARCH_TARGET_HEXES[s]:
-            is_target = True
-            print("Search target {}:".format(s+1))
-            print("\tBinary: '{}'".format(SEARCH_TARGETS[s]))
-            # print("\tHexadecimal: '{}'".format(SEARCH_TARGET_HEXES[s]))
-            print("\tProbability: {}".format(prob))
-            print()
-    if not is_target:
-        non_target_prob += prob
-
-print("Probability of any non-target is {}".format(round(non_target_prob,5)))

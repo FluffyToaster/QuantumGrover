@@ -17,7 +17,7 @@ forbidden = [
 ]
 
 
-def apply_optimisations(qasm):
+def apply_optimisations(qasm, qubit_count, data_qubits):
     """
     Apply 3 types of optimisation to the given QASM code:
         Combine groups of gates, such as H-X-H, to faster equivalent gates, Z in this case.
@@ -34,13 +34,13 @@ def apply_optimisations(qasm):
     prev_qasm = ""
     while prev_qasm != qasm:
         prev_qasm = qasm[:]
-        qasm = optimise(qasm, mode="speed")
+        qasm = optimise(qasm, qubit_count, data_qubits, mode="speed")
 
     # run "style" mode until QASM does not change
     prev_qasm = ""
     while prev_qasm != qasm:
         prev_qasm = qasm[:]
-        qasm = optimise(qasm, mode="style")
+        qasm = optimise(qasm, qubit_count, data_qubits, mode="style")
 
     # tidy up "ugly" optimised code
     qasm = clean_code(qasm)
@@ -122,7 +122,7 @@ def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
     return local_qasm_line
 
 
-def optimise(qasm, mode="speed"):
+def optimise(qasm, qubit_count, data_qubits, mode="speed"):
     """
     Apply a single pass of performance-oriented optimisations to the given QASM.
 
@@ -137,7 +137,7 @@ def optimise(qasm, mode="speed"):
 
     qasm_lines = qasm.split("\n")
     gates_applied = []
-    for i in range(QUBIT_COUNT):
+    for i in range(qubit_count):
         gates_applied.append([])
 
     for q in range(len(qasm_lines)):
@@ -172,7 +172,7 @@ def optimise(qasm, mode="speed"):
             for a in affected_qubits:
                 gates_applied[a].append((q, gate))
         else:
-            for a in range(DATA_QUBITS):
+            for a in range(data_qubits):
                 gates_applied[a].append((q, gate))
 
     for qubit in range(len(gates_applied)):
