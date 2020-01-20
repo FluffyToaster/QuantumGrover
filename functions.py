@@ -1,4 +1,3 @@
-from settings import *
 import matplotlib.pyplot as plt
 import math
 

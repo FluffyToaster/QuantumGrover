@@ -1,12 +1,11 @@
-from settings import *
 # from bruteforcer import *
 # optimisations = generate_optimisation_dict()
 
 optimisations = {
-    # "HXH": "Z",
+    "HXH": "Z",
     "HH": "",
-    # "XX": "",
-    # "ZX": "Y"
+    "XX": "",
+    "ZX": "Y"
 }
 largest_opt = 3
 
