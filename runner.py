@@ -5,7 +5,8 @@ import math
 
 
 def run_grover_sat(qi, expr_string, shot_count, mode, apply_optimisation=True, plot=True):
-    backend = qi.get_backend_type_by_name('QX single-node simulator')
+    # backend = qi.get_backend_type_by_name('QX single-node simulator')
+    backend = None
 
     algebra = boolean.BooleanAlgebra()
     expr = algebra.parse(expr_string)
@@ -40,7 +41,8 @@ def run_grover_sat(qi, expr_string, shot_count, mode, apply_optimisation=True, p
     if apply_optimisation:
         qasm = apply_optimisations(qasm, qubit_count, data_qubits)
 
-    execute_qasm(qi, qasm, shot_count, backend, qubit_count, data_qubits, plot, False)
+    return iterations * qasm.count("\n"), qubit_count
+    return execute_qasm(qi, qasm, shot_count, backend, qubit_count, data_qubits, plot, False)
 
 
 def run_grover_search(qi, search_targets, shot_count, mode, apply_optimisation=True, plot=False):
@@ -78,7 +80,8 @@ def run_grover_search(qi, search_targets, shot_count, mode, apply_optimisation=T
 
     qubit_count = data_qubits + ancillary_qubits
 
-    backend = qi.get_backend_type_by_name('QX single-node simulator')
+    # backend = qi.get_backend_type_by_name('QX single-node simulator')
+    backend = None
 
     qasm = "version 1.0\n" \
            "qubits {}\n".format(qubit_count)
@@ -105,8 +108,8 @@ def run_grover_search(qi, search_targets, shot_count, mode, apply_optimisation=T
 
     if apply_optimisation:
         qasm = apply_optimisations(qasm, qubit_count, data_qubits)
-
-    execute_qasm(qi, qasm, shot_count, backend, qubit_count, data_qubits, plot, True, search_targets, search_target_hexes)
+    return iterations * qasm.count("\n")
+    return execute_qasm(qi, qasm, shot_count, backend, qubit_count, data_qubits, plot, True, search_targets, search_target_hexes)
 
 
 def execute_qasm(qi, qasm, shot_count, backend, qubit_count, data_qubits, plot, is_search, search_targets=None, search_target_hexes=None):
