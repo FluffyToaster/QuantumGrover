@@ -4,7 +4,7 @@ import math
 import time
 
 
-def run_grover(qi, search_targets, shot_count, mode, apply_optimisation=True):
+def run_grover(qi, search_targets, shot_count, mode, apply_optimisation=True, plot=False):
     """
     Run a full round of Grover's Algorithm with the given settings.
 
@@ -14,6 +14,7 @@ def run_grover(qi, search_targets, shot_count, mode, apply_optimisation=True):
         shot_count: The number of shots to execute on the circuit
         mode: The mode for CNOTs (see main.py)
         apply_optimisation: Whether to apply the optimisation algorithm
+        plot: Whether to plot the results of this run
 
     Returns: A tuple of the following values:
         - histogram_list: a list of pairs, specifying a name and probability, as returned from QI
@@ -68,11 +69,11 @@ def run_grover(qi, search_targets, shot_count, mode, apply_optimisation=True):
     if apply_optimisation:
         qasm = apply_optimisations(qasm, qubit_count, data_qubits)
 
-    print("Generated QASM in {} seconds".format(str(time.time() - start_generate)[:5]))
+    # print("Generated QASM in {} seconds".format(str(time.time() - start_generate)[:5]))
 
-    write_file = open("qasms/latest.qasm", "w")
-    write_file.write(qasm)
-    write_file.close()
+    # write_file = open("qasms/latest.qasm", "w")
+    # write_file.write(qasm)
+    # write_file.close()
 
     line_count = qasm.count("\n")
     print("Executing QASM code ({} instructions, {} qubits, {} shots)".format(line_count, qubit_count, shot_count))
@@ -84,7 +85,7 @@ def run_grover(qi, search_targets, shot_count, mode, apply_optimisation=True):
         print("No plot because of large qubit count")
         histogram_list = interpret_results(result, qubit_count, data_qubits, False)
     else:
-        histogram_list = interpret_results(result, qubit_count, data_qubits)
+        histogram_list = interpret_results(result, qubit_count, data_qubits, plot)
 
     non_target_prob = 0
     target_probs = [0 for _ in range(len(search_targets))]
@@ -95,13 +96,13 @@ def run_grover(qi, search_targets, shot_count, mode, apply_optimisation=True):
             if name == search_target_hexes[s]:
                 is_target = True
                 target_probs[s] = prob
-                print("Search target {}:".format(s + 1))
-                print("\tBinary: '{}'".format(search_targets[s]))
-                print("\tProbability: {}".format(prob))
-                print()
+                # print("Search target {}:".format(s + 1))
+                # print("\tBinary: '{}'".format(search_targets[s]))
+                # print("\tProbability: {}".format(prob))
+                # print()
         if not is_target:
             non_target_prob += prob
 
-    print("Probability of any non-target is {}".format(round(non_target_prob, 5)))
+    # print("Probability of any non-target is {}".format(round(non_target_prob, 5)))
 
     return histogram_list, target_probs, non_target_prob, line_count, runtime

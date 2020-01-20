@@ -178,7 +178,7 @@ def cnot_pillar(mode, data_qubits):
     """
     local_qasm = "H q[{}]\n".format(data_qubits - 1)
     if mode == "normal":
-        local_qasm += normal_n_size_cnot(data_qubits - 1)
+        local_qasm += normal_n_size_cnot(data_qubits - 1, mode)
     elif mode == "crot":
         local_qasm += n_size_crot(data_qubits - 1, 0, data_qubits - 1, math.pi)
     elif mode == "fancy cnot":
