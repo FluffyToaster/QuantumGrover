@@ -210,13 +210,6 @@ def optimise(qasm, qubit_count, data_qubits, mode="speed"):
                 current_line, current_gate = gates[g]
                 prev_line = current_line - 1
 
-                # # we obviously can't shift a toffoli control
-                # if "Toffoli" in qasm_lines[current_line]:
-                #     continue
-                #
-                # # if previous line has a Toffoli bar, don't parellelize for style purposes
-                # if "Toffoli" in qasm_lines[prev_line]:
-                #     continue
                 if any(f in qasm_lines[current_line] or f in qasm_lines[prev_line] for f in forbidden):
                     continue
 
@@ -233,10 +226,6 @@ def optimise(qasm, qubit_count, data_qubits, mode="speed"):
                     qasm_lines[current_line] = remove_gate_from_line(qasm_lines[current_line], current_gate, qubit)
                     # add to left
                     qasm_lines[prev_line] = add_gate_to_line(qasm_lines[prev_line], current_gate, qubit)
-
-                    if "{ |" in qasm_lines[prev_line]:
-                        print("....................................................NANI")
-                        print(current_line, current_gate, qubit)
 
     # remove blank lines
     qasm_lines = list(filter(lambda x: x not in ["", "{}", " "], qasm_lines))
