@@ -1,7 +1,7 @@
 # from bruteforcer import *
-# optimisations = generate_optimisation_dict()
+# optimizations = generate_optimization_dict()
 
-optimisations = {
+optimizations = {
     "HXH": "Z",
     "HH": "",
     "XX": "",
@@ -16,32 +16,32 @@ forbidden = [
 ]
 
 
-def apply_optimisations(qasm, qubit_count, data_qubits):
+def apply_optimizations(qasm, qubit_count, data_qubits):
     """
-    Apply 3 types of optimisation to the given QASM code:
+    Apply 3 types of optimization to the given QASM code:
         Combine groups of gates, such as H-X-H, to faster equivalent gates, Z in this case.
         Shift gates to be executed in parallel.
         Clean QASM code itself (q[1,2,3] becomes q[1:3])
 
     Args:
-        qasm: Valid QASM code to optimise
+        qasm: Valid QASM code to optimize
 
-    Returns: A _equivalent_ piece of QASM with optimisations applied
+    Returns: A equivalent piece of QASM with optimizations applied
     """
 
     # run "speed" mode until QASM does not change
     prev_qasm = ""
     while prev_qasm != qasm:
         prev_qasm = qasm[:]
-        qasm = optimise(qasm, qubit_count, data_qubits, mode="speed")
+        qasm = optimize(qasm, qubit_count, data_qubits, mode="speed")
 
     # run "style" mode until QASM does not change
     prev_qasm = ""
     while prev_qasm != qasm:
         prev_qasm = qasm[:]
-        qasm = optimise(qasm, qubit_count, data_qubits, mode="style")
+        qasm = optimize(qasm, qubit_count, data_qubits, mode="style")
 
-    # tidy up "ugly" optimised code
+    # tidy up "ugly" optimized code
     qasm = clean_code(qasm)
 
     return qasm
@@ -121,17 +121,17 @@ def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
     return local_qasm_line
 
 
-def optimise(qasm, qubit_count, data_qubits, mode="speed"):
+def optimize(qasm, qubit_count, data_qubits, mode="speed"):
     """
-    Apply a single pass of performance-oriented optimisations to the given QASM.
+    Apply a single pass of performance-oriented optimizations to the given QASM.
 
     Args:
-        qasm: A valid QASM program to optimise.
-        mode: Setting that determines the type of optimisation:
+        qasm: A valid QASM program to optimize.
+        mode: Setting that determines the type of optimization:
             "speed" -> combine gates into equivalent smaller gates
             "style" -> parallelize gates for speedup and aesthetics
 
-    Returns: Functionally the same QASM code, with one run of optimisations applied.
+    Returns: Functionally the same QASM code, with one run of optimizations applied.
     """
 
     qasm_lines = qasm.split("\n")
@@ -185,8 +185,8 @@ def optimise(qasm, qubit_count, data_qubits, mode="speed"):
             if mode == "speed":
                 for offset in range(0, largest_opt - 1):
                     next_gates = "".join(map(lambda _: _[1], gates[g:g+largest_opt-offset]))
-                    if next_gates in optimisations:
-                        replacement = optimisations[next_gates]
+                    if next_gates in optimizations:
+                        replacement = optimizations[next_gates]
 
                         line_indices = list(map(lambda _: _[0], gates[g:g+largest_opt-offset]))
                         # first, remove all gates that are to be replaced

@@ -1,17 +1,17 @@
 from src.grover.qasm_utilities import *
-from src.optimisations.optimiser import *
+from src.optimizations.optimizer import *
 from src.grover.sat_utilities import *
 import math
 
 
-def grover_sat_qasm(expr_string, mode, apply_optimisation=True):
+def grover_sat_qasm(expr_string, mode, apply_optimization=True):
     """
     Generate the QASM needed to evaluate the SAT problem for a given boolean expression.
 
     Args:
         expr_string: A boolean expression as a string
         mode: The mode for CNOTs (see main.py)
-        apply_optimisation: Whether to apply the optimisation algorithm
+        apply_optimization: Whether to apply the optimization algorithm
 
     Returns: A tuple of the following values:
         - qasm: The QASM representing the requested Grover search
@@ -50,20 +50,20 @@ def grover_sat_qasm(expr_string, mode, apply_optimisation=True):
     qasm += fill("X", data_qubits)
     qasm += fill("H", data_qubits)
 
-    if apply_optimisation:
-        qasm = apply_optimisations(qasm, qubit_count, data_qubits)
+    if apply_optimization:
+        qasm = apply_optimizations(qasm, qubit_count, data_qubits)
 
     return qasm, iterations * qasm.count("\n"), qubit_count, data_qubits
 
 
-def grover_search_qasm(search_targets, mode, apply_optimisation=True):
+def grover_search_qasm(search_targets, mode, apply_optimization=True):
     """
     Generate the QASM needed to perform an unordered search using Grover's Algorithm.
 
     Args:
         search_targets: A list of bit strings to search for
         mode: The mode for CNOTs (see main.py)
-        apply_optimisation: Whether to apply the optimisation algorithm
+        apply_optimization: Whether to apply the optimization algorithm
 
     Returns: A tuple of the following values:
         - qasm: The QASM representing the requested Grover search
@@ -106,8 +106,8 @@ def grover_search_qasm(search_targets, mode, apply_optimisation=True):
     qasm += fill("X", data_qubits)
     qasm += fill("H", data_qubits)
 
-    if apply_optimisation:
-        qasm = apply_optimisations(qasm, qubit_count, data_qubits)
+    if apply_optimization:
+        qasm = apply_optimizations(qasm, qubit_count, data_qubits)
 
     return qasm, iterations * qasm.count("\n"), qubit_count, data_qubits
 

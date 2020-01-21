@@ -79,11 +79,11 @@ def find_equivalent_to(*gates):
     return matches
 
 
-def generate_optimisation_dict():
-    optimisation_dict = {}
+def generate_optimization_dict():
+    optimization_dict = {}
 
     for gate in ["H", "X", "Y", "I", "Z"]:
         for match in find_equivalent_to(GATE_SET[gate]):
-            optimisation_dict[match] = gate.replace("I", "")
+            optimization_dict[match] = gate.replace("I", "")
 
-    return optimisation_dict
+    return optimization_dict

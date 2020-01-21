@@ -12,9 +12,9 @@ backend = qi.get_backend_type_by_name('QX single-node simulator')
 
 SHOT_COUNT = 500
 
-# whether to apply optimisation to our generated QASM
+# whether to apply optimization to our generated QASM
 # performance improvement of ~20-50%
-OPTIMISE = True
+OPTIMIZE = True
 
 # MODES:
 #   - normal: use toffoli gates and ancillary bits for max speed
