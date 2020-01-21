@@ -23,13 +23,21 @@ def grover_sat_qasm(expr_string, mode, apply_optimization=True):
     algebra = boolean.BooleanAlgebra()
     expr = algebra.parse(expr_string)
 
-    control_names = list(expr.symbols)
+    control_names = sorted(list(expr.symbols), reverse=True)
 
     # note that the number of data qubits also includes an extra bit which must be 1 for the algorithm to succeed
     data_qubits = len(control_names) + 1
 
-    oracle_qasm, _, last_qubit_index = generate_sat_oracle(expr, control_names, True)
+    expr = split_expression_evenly(expr)
+
+    # oracle_qasm, _, last_qubit_index = generate_sat_oracle(expr, control_names, True)
+    _, oracle_qasm, last_qubit_index = generate_fancy_sat_oracle(expr, [], control_names, is_toplevel=True)
+
     qubit_count = last_qubit_index + 1
+
+    # some modes may require many ancillary qubits for the diffusion operator!
+    if mode in ["normal", "no toffoli"]:
+        qubit_count = max(qubit_count, data_qubits * 2 - 3)
 
     qasm = "version 1.0\n" \
            "qubits {}\n".format(qubit_count)

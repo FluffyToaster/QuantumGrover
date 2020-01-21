@@ -74,3 +74,76 @@ def generate_or(qubit_1, qubit_2, target_qubit):
     local_qasm += generate_and(qubit_1, qubit_2, target_qubit)
     local_qasm += "X q[{},{},{}]\n".format(qubit_1, qubit_2, target_qubit)
     return local_qasm
+
+
+def split_expression_evenly(expr):
+    expr_type = type(expr)
+    if len(expr.args) > 2:
+        halfway = int(len(expr.args) / 2)
+        right_expanded = split_expression_evenly(expr_type(*expr.args[halfway:]))
+
+        if len(expr.args) > 3:
+            left_expanded = split_expression_evenly(expr_type(*expr.args[:halfway]))
+        else:
+            left_expanded = expr.args[0]
+
+        return expr_type(left_expanded, right_expanded)
+    elif len(expr.args) == 2:
+        return expr_type(split_expression_evenly(expr.args[0]),
+                         split_expression_evenly(expr.args[1]))
+    else:
+        return expr
+
+
+def generate_fancy_sat_oracle(expr, avoid, control_names, last_qubit=-1, is_toplevel=False):
+    first_ancillary_bit = len(control_names) + 1
+
+    if len(expr.args) > 2:
+        raise ValueError("Fancy SAT Oracle expects only 2-argument expressions, but got {}".format(expr.args))
+
+    if type(expr) == Symbol:
+        return control_names.index(expr), "", last_qubit
+    elif type(expr) == NOT:
+        qubit_index = control_names.index(expr.args[0])
+        return qubit_index, "X q[{}]".format(qubit_index), last_qubit
+    elif type(expr) == AND:
+        generate_func = generate_and
+    elif type(expr) == OR:
+        generate_func = generate_or
+    else:
+        raise ValueError("Unknown type in Boolean expression: {}".format(type(expr)))
+
+    left_expr = expr.args[0]
+    right_expr = expr.args[1]
+
+    left_line, left_qasm, left_last_qubit = generate_fancy_sat_oracle(left_expr, avoid[:], control_names, last_qubit)
+    avoid.append(left_line)
+    right_line, right_qasm, right_last_qubit = generate_fancy_sat_oracle(right_expr, avoid[:], control_names, last_qubit)
+    avoid.append(right_line)
+
+    target_line = -1
+    # if toplevel, we know what to target
+    if is_toplevel:
+        target_line = first_ancillary_bit - 1
+        my_qasm = "H q[{}]\n".format(target_line) + \
+                  generate_func(left_line, right_line, target_line) + \
+                  "H q[{}]\n".format(target_line)
+    else:
+        # find the lowest line we can use
+        for i in range(first_ancillary_bit, first_ancillary_bit + max(avoid) + 1):
+            if i not in avoid:
+                target_line = i
+                break
+        my_qasm = generate_func(left_line, right_line, target_line)
+
+    last_qubit = max(last_qubit, max(avoid), left_last_qubit, right_last_qubit, target_line)
+
+    qasm = "\n".join([
+        left_qasm,
+        right_qasm,
+        my_qasm,
+        *right_qasm.split("\n")[::-1],
+        *left_qasm.split("\n")[::-1]
+    ])
+
+    return target_line, qasm, last_qubit

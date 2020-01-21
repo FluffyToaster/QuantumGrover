@@ -26,18 +26,18 @@ MODE = "normal"
 
 # Search example
 
-SEARCH_TARGETS = [
-    "000100"[::-1],
-    "100111"[::-1],
-]
-
-qasm, _, qubit_count, data_qubits = grover_search_qasm(SEARCH_TARGETS, MODE)
-execute_search_qasm(SEARCH_TARGETS, qi, qasm, SHOT_COUNT, backend, qubit_count, data_qubits, True)
+# SEARCH_TARGETS = [
+#     "000100"[::-1],
+#     "100111"[::-1],
+# ]
+#
+# qasm, _, qubit_count, data_qubits = grover_search_qasm(SEARCH_TARGETS, MODE)
+# execute_search_qasm(SEARCH_TARGETS, qi, qasm, SHOT_COUNT, backend, qubit_count, data_qubits, True)
 
 
 # SAT example
 
-BOOL_EXPR = "a and (b and (c and d))"
+BOOL_EXPR = "a and b and not(c)"
 
 qasm, _, qubit_count, data_qubits = grover_sat_qasm(BOOL_EXPR, MODE)
 execute_sat_qasm(qi, qasm, SHOT_COUNT, backend, qubit_count, data_qubits, True)
