@@ -41,6 +41,11 @@ def apply_optimizations(qasm, qubit_count, data_qubits):
         prev_qasm = qasm[:]
         qasm = optimize(qasm, qubit_count, data_qubits, mode="style")
 
+    prev_qasm = ""
+    while prev_qasm != qasm:
+        prev_qasm = qasm[:]
+        qasm = optimize_toffoli(qasm)
+
     # tidy up "ugly" optimized code
     qasm = clean_code(qasm)
 
@@ -77,6 +82,45 @@ def remove_gate_from_line(local_qasm_line, gate_symbol, qubit_index):
         local_qasm_line = local_qasm_line.replace("[{},".format(qubit_index), "[")
         local_qasm_line = local_qasm_line.replace(",{}]".format(qubit_index), "]")
 
+    return local_qasm_line
+
+
+def remove_toffoli_from_line(local_qasm_line, qubit_1, qubit_2, target_qubit):
+    single_application = "Toffoli q[{}],q[{}],q[{}]".format(qubit_1, qubit_2, target_qubit)
+
+    # if there is a parallel bar right
+    local_qasm_line = local_qasm_line.replace(single_application + " | ", "")
+    # else: if there is a parallel bar left
+    local_qasm_line = local_qasm_line.replace(" | " + single_application, "")
+    # else: if it is the only gate in parallelized brackets
+    local_qasm_line = local_qasm_line.replace("{" + single_application + "}", "")
+    # else: if it is not parellelized at all
+    local_qasm_line = local_qasm_line.replace(single_application, "")
+    return local_qasm_line
+
+
+def add_toffoli_to_line(local_qasm_line, qubit_1, qubit_2, target_qubit):
+    single_application = "Toffoli q[{}],q[{}],q[{}]".format(qubit_1, qubit_2, target_qubit)
+
+    # if the line is not empty, we need to consider what's already present
+    if local_qasm_line != "":
+        # a bracket indicates this line is parallelized with the { gate_1 | gate_2 | gate_3 } syntax
+        if "{" in local_qasm_line:
+            # remove } from the line and add it back at the end
+            local_qasm_line = local_qasm_line.rstrip("}| \n") + \
+                              " | " + \
+                              single_application + \
+                              "}\n"
+
+        # no bracket means we have to add the parallelization syntax ourselves
+        else:
+            local_qasm_line = "{" + local_qasm_line.rstrip("\n") + \
+                              " | " + \
+                              single_application + "}\n"
+
+    # else, if the line IS empty, we can just put this gate in directly
+    else:
+        local_qasm_line = single_application + "\n"
     return local_qasm_line
 
 
@@ -226,6 +270,68 @@ def optimize(qasm, qubit_count, data_qubits, mode="speed"):
                     qasm_lines[current_line] = remove_gate_from_line(qasm_lines[current_line], current_gate, qubit)
                     # add to left
                     qasm_lines[prev_line] = add_gate_to_line(qasm_lines[prev_line], current_gate, qubit)
+
+    # remove blank lines
+    qasm_lines = list(filter(lambda x: x not in ["", "{}", " "], qasm_lines))
+    return "\n".join(qasm_lines).replace("\n\n", "\n")
+
+
+def optimize_toffoli(qasm):
+    """
+    Specific style optimizer capable of left-shifting and annihilating Toffoli gates.
+
+    Args:
+        qasm: QASM to optimize
+
+    Returns: Equivalent QASM with Toffoli gates optimized.
+    """
+
+    qasm_lines = qasm.split("\n")
+    for current_line_index in range(1, len(qasm_lines)):
+        cur_line = qasm_lines[current_line_index]
+        prev_line = qasm_lines[current_line_index - 1]
+        if "Toffoli" in cur_line and "Toffoli" in prev_line and ".grover_loop" not in prev_line:
+            # find all Toffoli triplets in both lines
+            prev_line_gates = prev_line.strip("{} |").split(" | ")
+            prev_line_toffolis = list(filter(lambda x: "Toffoli" in x, prev_line_gates))
+
+            cur_line_gates = cur_line.strip("{} |").split(" | ")
+            cur_line_toffolis = list(filter(lambda x: "Toffoli" in x, cur_line_gates))
+
+            any_updated = False
+            for c_t in cur_line_toffolis:
+                if any_updated:
+                    break
+
+                c_qubit_1, c_qubit_2, c_target_qubit = tuple(map(int, c_t.strip("Toffoli q[]").split("],q[")))
+                shiftable = True
+
+                for p_t in prev_line_toffolis:
+                    p_qubit_1, p_qubit_2, p_target_qubit = tuple(map(int, p_t.strip("Toffoli q[]").split("],q[")))
+
+                    if {c_qubit_1, c_qubit_2} == {p_qubit_1, p_qubit_2} and c_target_qubit == p_target_qubit:
+                        # remove toffolis from both lines
+                        cur_line = remove_toffoli_from_line(cur_line, c_qubit_1, c_qubit_2, c_target_qubit)
+                        prev_line = remove_toffoli_from_line(prev_line, p_qubit_1, p_qubit_2, p_target_qubit)
+                        shiftable = False
+                        any_updated = True
+                        break
+                    elif len({c_qubit_1, c_qubit_2, c_target_qubit}.intersection(
+                            {p_qubit_1, p_qubit_2, p_target_qubit})) != 0:
+                        shiftable = False
+                        break
+
+                # check if anything has blocked us from shifting left
+                if shiftable:
+                    # otherwise we can go!
+                    cur_line = remove_toffoli_from_line(cur_line, c_qubit_1, c_qubit_2, c_target_qubit)
+                    prev_line = add_toffoli_to_line(prev_line, c_qubit_1, c_qubit_2, c_target_qubit)
+
+                    any_updated = True
+
+            if any_updated:
+                qasm_lines[current_line_index] = cur_line
+                qasm_lines[current_line_index - 1] = prev_line
 
     # remove blank lines
     qasm_lines = list(filter(lambda x: x not in ["", "{}", " "], qasm_lines))

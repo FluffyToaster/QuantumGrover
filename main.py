@@ -37,7 +37,7 @@ MODE = "normal"
 
 # SAT example
 
-BOOL_EXPR = "a and b and not(c)"
+BOOL_EXPR = "(a and b and c and d) or (a and b and not(c) and not(d))"
 
 qasm, _, qubit_count, data_qubits = grover_sat_qasm(BOOL_EXPR, MODE)
 execute_sat_qasm(qi, qasm, SHOT_COUNT, backend, qubit_count, data_qubits, True)

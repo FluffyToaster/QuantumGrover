@@ -99,7 +99,7 @@ def generate_fancy_sat_oracle(expr, avoid, control_names, last_qubit=-1, is_topl
     first_ancillary_bit = len(control_names) + 1
 
     if len(expr.args) > 2:
-        raise ValueError("Fancy SAT Oracle expects only 2-argument expressions, but got {}".format(expr.args))
+        raise ValueError("Fancy SAT Oracle expects only 1 and 2-argument expressions, but got {}".format(expr.args))
 
     if type(expr) == Symbol:
         return control_names.index(expr), "", last_qubit
