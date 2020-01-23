@@ -17,10 +17,10 @@ SHOT_COUNT = 500
 OPTIMIZE = True
 
 # MODES:
-#   - normal: use toffoli gates and ancillary bits for max speed
-#   - no toffoli: same as normal, but replace toffoli gates for 2-gate equivalent circuits. uses ancillary bits.
-#   - crot: no ancillary bits or toffoli gates, but scales with 3^n gates for n bits
-#   - fancy cnot: no ancillary bits or toffoli gates, scales 2^n
+#   - normal: use toffoli gates and ancillary qubits for max speed
+#   - no toffoli: same as normal, but replace toffoli gates for 2-gate equivalent circuits. uses ancillary qubits.
+#   - crot: no ancillary qubits or toffoli gates, but scales with 3^n gates for n bits
+#   - fancy cnot: no ancillary qubits or toffoli gates, scales 2^n
 MODE = "normal"
 
 
@@ -40,7 +40,7 @@ MODE = "normal"
 # BOOL_EXPR = "(a and b and c and d) or (a and b and not(c) and not(d))"
 # BOOL_EXPR = generate_ksat_expression(4, 5, 5)
 # BOOL_EXPR = "(c or not(d) or a or not(b) or not(e)) and (c or not(e) or not(a) or not(b) or d) and (a or e or b or not(d) or c) and (b or a or not(c) or e or d)"
-BOOL_EXPR = "(a and b) and (a and b)"
+BOOL_EXPR = "(a and b and c and d) or (a and b and c and d)"
 qasm, _, qubit_count, data_qubits = grover_sat_qasm(BOOL_EXPR, MODE, sat_mode="normal")
 print(qasm)
 # write_file = open("qasms/latest_sat.qasm", "w")

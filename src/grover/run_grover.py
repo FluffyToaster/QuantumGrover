@@ -29,7 +29,7 @@ def grover_sat_qasm(expr_string, cnot_mode, sat_mode="fancy", apply_optimization
     # note that the number of data qubits also includes an extra bit which must be 1 for the algorithm to succeed
     data_qubits = len(control_names) + 1
 
-    expr = split_expression_evenly(expr)
+    expr = split_expression_evenly(expr.simplify())
 
     if sat_mode == "normal":
         oracle_qasm, _, last_qubit_index = generate_sat_oracle(expr, control_names, is_toplevel=True)

@@ -16,27 +16,37 @@ def generate_sat_oracle(expr: boolean.Expression, control_names, is_toplevel=Fal
     """
 
     global global_last_ancillary_index
+    global expressions_calculated
+
     if is_toplevel:
         global_last_ancillary_index = len(control_names)
+        expressions_calculated = {}
     local_qasm = ""
 
     # go through possible types
     if type(expr) == AND or type(expr) == OR:
         # left side
-        left_qasm, left_qubit= generate_sat_oracle(expr.args[0], control_names)
-        right_qasm, right_qubit = generate_sat_oracle(expr.args[1], control_names)
+        left_qasm, left_qubit, _ = generate_sat_oracle(expr.args[0], control_names)
+        expressions_calculated[expr.args[0]] = left_qubit
+        right_qasm, right_qubit, _ = generate_sat_oracle(expr.args[1], control_names)
+        expressions_calculated[expr.args[1]] = right_qubit
         local_qasm += left_qasm
         local_qasm += right_qasm
     elif type(expr) == NOT:
-        inner_qasm, inner_qubit = generate_sat_oracle(expr.args[0], control_names)
+        inner_qasm, inner_qubit, _ = generate_sat_oracle(expr.args[0], control_names)
         local_qasm += inner_qasm
         local_qasm += "X q[{}]\n".format(inner_qubit)
-        return local_qasm, inner_qubit
+        return local_qasm, inner_qubit, global_last_ancillary_index
     elif type(expr) == Symbol:
         # nothing to do here
-        return local_qasm, control_names.index(expr)
+        return local_qasm, control_names.index(expr), global_last_ancillary_index
     else:
         raise ValueError("Unknown boolean expr type: {}".format(type(expr)))
+
+    if expr in expressions_calculated:
+        already_calculated_index = expressions_calculated[expr]
+        # we don't need to add any qasm, just say where this expression can be found
+        return "", already_calculated_index, global_last_ancillary_index
 
     if is_toplevel:
         target_qubit = len(control_names)
@@ -59,18 +69,27 @@ def generate_sat_oracle(expr: boolean.Expression, control_names, is_toplevel=Fal
         if type(expr.args[1]) == NOT:
             local_qasm += "X q[{}]\n".format(right_qubit)
 
+    # indicate to other calls of this function that this expression has been generated already
+    expressions_calculated[expr] = target_qubit
+
     if is_toplevel:
         local_qasm += "\n".join(left_half_qasm.split("\n")[::-1])
         return local_qasm, target_qubit, global_last_ancillary_index
 
-    return local_qasm, target_qubit
+    return local_qasm, target_qubit, global_last_ancillary_index
 
 
 def generate_and(qubit_1, qubit_2, target_qubit):
+    if qubit_1 == qubit_2:
+        return "CNOT q[{}],q[{}]\n".format(qubit_1, target_qubit)
+
     return "Toffoli q[{}],q[{}],q[{}]\n".format(qubit_1, qubit_2, target_qubit)
 
 
 def generate_or(qubit_1, qubit_2, target_qubit):
+    if qubit_1 == qubit_2:
+        return "CNOT q[{}],q[{}]\n".format(qubit_1, target_qubit)
+
     local_qasm = "X q[{},{}]\n".format(qubit_1, qubit_2)
     local_qasm += generate_and(qubit_1, qubit_2, target_qubit)
     local_qasm += "X q[{},{},{}]\n".format(qubit_1, qubit_2, target_qubit)

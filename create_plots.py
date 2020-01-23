@@ -31,10 +31,10 @@ for i in range(3, 12):
 plt.yscale("log")
 plt.xlabel("Length of search string", fontsize=FONTSIZE_AXES)
 plt.ylabel("Number of quantum operations", fontsize=FONTSIZE_AXES)
-plt.plot(x_values, unopt_fancy_values, c="red", ls="-", label="No ancillary bits")
-plt.plot(x_values, opt_fancy_values, c="green", ls="-", label="No ancillary bits (optimized)")
-plt.plot(x_values, unopt_norm_values, c="orange", ls="-", label="N-3 ancillary bits")
-plt.plot(x_values, opt_norm_values, c="blue", ls="-", label="N-3 ancillary bits (optimized)")
+plt.plot(x_values, unopt_fancy_values, c="red", ls="-", label="No ancillary qubits")
+plt.plot(x_values, opt_fancy_values, c="green", ls="-", label="No ancillary qubits (optimized)")
+plt.plot(x_values, unopt_norm_values, c="orange", ls="-", label=r"$n-3$ ancillary qubits")
+plt.plot(x_values, opt_norm_values, c="blue", ls="-", label=r"$n-3$ ancillary qubits (optimized)")
 plt.legend(fontsize=FONTSIZE_LEGEND, loc="upper left")
 plt.grid()
 
@@ -43,6 +43,10 @@ plt.show()
 
 
 # SAT VS CLASSICAL PLOT
+
+xrange = list(range(2, 17))
+batch_size = 10
+
 x_values = []
 sat_values_normal = []
 sat_values_fancy = []
@@ -52,24 +56,34 @@ classical_values_decent = []
 qubit_counts_normal = []
 qubit_counts_fancy = []
 
-for i in range(2, 17):
+for i in xrange:
+    sat_values_normal.append(0)
+    sat_values_fancy.append(0)
+    classical_values_decent.append(0)
+    classical_values_exhaustive.append(0)
+    qubit_counts_normal.append(0)
+    qubit_counts_fancy.append(0)
+
+for i in xrange:
     x_values.append(i)
 
     group_count = 4
     group_size = i
     alphabet_size = i
-    bool_expression = generate_ksat_expression(group_count, group_size, alphabet_size)
-    _, sat_val_normal, qubit_count_normal, _ = grover_sat_qasm(bool_expression, "normal", sat_mode="normal")
-    _, sat_val_fancy, qubit_count_fancy, _ = grover_sat_qasm(bool_expression, "normal", sat_mode="fancy")
 
-    sat_values_normal.append(sat_val_normal)
-    sat_values_fancy.append(sat_val_fancy)
-    qubit_counts_normal.append(qubit_count_normal)
-    qubit_counts_fancy.append(qubit_count_fancy)
+    for j in range(batch_size):
+        bool_expression = generate_ksat_expression(group_count, group_size, alphabet_size)
+        _, sat_val_normal, qubit_count_normal, _ = grover_sat_qasm(bool_expression, "normal", sat_mode="normal")
+        _, sat_val_fancy, qubit_count_fancy, _ = grover_sat_qasm(bool_expression, "normal", sat_mode="fancy")
 
-    operation_count = bool_expression.count("or") + bool_expression.count("not") + bool_expression.count("and")
-    classical_values_exhaustive.append((2 ** alphabet_size) * operation_count)
-    classical_values_decent.append((2 * (1 - 1/group_size)) ** alphabet_size * 5)
+        sat_values_normal[i-2] += sat_val_normal / batch_size
+        sat_values_fancy[i-2] += sat_val_fancy / batch_size
+        qubit_counts_normal[i-2] += qubit_count_normal / batch_size
+        qubit_counts_fancy[i-2] += qubit_count_fancy / batch_size
+
+        operation_count = bool_expression.count("or") + bool_expression.count("not") + bool_expression.count("and")
+        classical_values_exhaustive[i-2] += (2 ** alphabet_size) * operation_count / batch_size
+        classical_values_decent[i-2] += (2 * (1 - 1/group_size)) ** alphabet_size * 5 / batch_size
 
 fig, (ax1, ax2) = plt.subplots(nrows=2, gridspec_kw={'height_ratios': [2, 1]})
 fig.set_figheight(7)
@@ -78,8 +92,8 @@ fig.set_figheight(7)
 ax1.set_yscale("log")
 ax1.set_xlabel("Clause size (k) for k-SAT problem", fontsize=FONTSIZE_AXES)
 ax1.set_ylabel("Number of operations", fontsize=FONTSIZE_AXES)
-ax1.plot(x_values, sat_values_fancy, c="orange", ls="-", label="Grover (few ancillary bits)")
-ax1.plot(x_values, sat_values_normal, c="blue", ls="-", label="Grover (many ancillary bits)")
+ax1.plot(x_values, sat_values_fancy, c="orange", ls="-", label="Grover (few ancillary qubits)")
+ax1.plot(x_values, sat_values_normal, c="blue", ls="-", label="Grover (many ancillary qubits)")
 ax1.plot(x_values, classical_values_exhaustive, c="red", ls="-", label="Classical (exhaustive)")
 ax1.plot(x_values, classical_values_decent, c="purple", ls="-", label="Classical (optimal)")
 ax1.grid()
@@ -87,8 +101,8 @@ ax1.grid()
 ax2.set_yscale("linear")
 ax2.set_xlabel("Clause size (k) for k-SAT problem", fontsize=FONTSIZE_AXES)
 ax2.set_ylabel("Number of qubits", fontsize=FONTSIZE_AXES)
-ax2.plot(x_values, qubit_counts_normal, c="blue", ls="--", label="Grover (many ancillary bits)")
-ax2.plot(x_values, qubit_counts_fancy, c="orange", ls="--", label="Grover (few ancillary bits)")
+ax2.plot(x_values, qubit_counts_normal, c="blue", ls="--", label="Grover (many ancillary qubits)")
+ax2.plot(x_values, qubit_counts_fancy, c="orange", ls="--", label="Grover (few ancillary qubits)")
 ax2.grid()
 
 ax1.legend(fontsize=FONTSIZE_LEGEND, loc="upper left")

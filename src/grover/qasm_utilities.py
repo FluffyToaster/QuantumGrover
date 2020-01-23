@@ -87,7 +87,7 @@ def normal_n_size_cnot(n, mode):
                 gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, target))
 
         # Apply the complete list of gates in reverse after the target is flipped
-        # This undoes all operations on the ancillary bits (so they remain 0)
+        # This undoes all operations on the ancillary qubits (so they remain 0)
         gate_list = gate_list + gate_list[-2::-1]
         local_qasm = "\n".join(gate_list) + "\n"
 
@@ -257,11 +257,11 @@ def interpret_results(result_dict, qubit_count, data_qubits, plot=True):
 
     if plot:
         for b in ordered_bars:
-            # check if the given bar has 0's for all the ancillary bits
+            # check if the given bar has 0's for all the ancillary qubits
             # if it does not, we assume it is irrelevant for the histogram, so we don't plot it
             if int(b[0], 16) < 2 ** data_qubits:
                 plt.bar(b[0], b[1])
-            # if a result is returned where some ancillary bits were not zero, we have a problem
+            # if a result is returned where some ancillary qubits were not zero, we have a problem
             elif b[1] != 0:
                 raise ValueError("\tNonzero result from 'impossible' measurement:\n"
                                  "\tColumn {} has fraction {}. This means not all control bits were 0!".format(b[0],
@@ -293,7 +293,7 @@ def gray_code(n):
 def fancy_cnot(n):
     """
     Generate a circuit equivalent to an n-bit CNOT.
-    This avoids using Toffoli gates or ancillary bits.
+    This avoids using Toffoli gates or ancillary qubits.
     Args:
         n: Number of control bits
 
