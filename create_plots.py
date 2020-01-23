@@ -35,87 +35,110 @@ plt.plot(x_values, unopt_fancy_values, c="red", ls="-", label="No ancillary bits
 plt.plot(x_values, opt_fancy_values, c="green", ls="-", label="No ancillary bits (optimized)")
 plt.plot(x_values, unopt_norm_values, c="orange", ls="-", label="N-3 ancillary bits")
 plt.plot(x_values, opt_norm_values, c="blue", ls="-", label="N-3 ancillary bits (optimized)")
-plt.legend(fontsize=FONTSIZE_LEGEND)
+plt.legend(fontsize=FONTSIZE_LEGEND, loc="upper left")
+plt.grid()
 
 plt.savefig("plots/4_impl.png")
 plt.show()
 
 
 # SAT VS CLASSICAL PLOT
-bool_expression = "(a and b)"
 x_values = []
-sat_values = []
-classical_values = []
-qubit_counts = []
+sat_values_normal = []
+sat_values_fancy = []
+classical_values_exhaustive = []
+classical_values_decent = []
 
-for i in range(3, 12):
+qubit_counts_normal = []
+qubit_counts_fancy = []
+
+for i in range(2, 17):
     x_values.append(i)
 
-    bool_expression = "(" + bool_expression + " and {})".format(chr(96+i))
-    _, sat_val, qubit_count, _ = grover_sat_qasm(bool_expression, "no toffoli")
+    group_count = 4
+    group_size = i
+    alphabet_size = i
+    bool_expression = generate_ksat_expression(group_count, group_size, alphabet_size)
+    _, sat_val_normal, qubit_count_normal, _ = grover_sat_qasm(bool_expression, "normal", sat_mode="normal")
+    _, sat_val_fancy, qubit_count_fancy, _ = grover_sat_qasm(bool_expression, "normal", sat_mode="fancy")
 
-    sat_values.append(sat_val)
-    qubit_counts.append(qubit_count)
-    classical_values.append((2 ** i) * i)
+    sat_values_normal.append(sat_val_normal)
+    sat_values_fancy.append(sat_val_fancy)
+    qubit_counts_normal.append(qubit_count_normal)
+    qubit_counts_fancy.append(qubit_count_fancy)
 
-fig, ax1 = plt.subplots()
+    operation_count = bool_expression.count("or") + bool_expression.count("not") + bool_expression.count("and")
+    classical_values_exhaustive.append((2 ** alphabet_size) * operation_count)
+    classical_values_decent.append((2 * (1 - 1/group_size)) ** alphabet_size * 5)
+
+fig, (ax1, ax2) = plt.subplots(nrows=2, gridspec_kw={'height_ratios': [2, 1]})
+fig.set_figheight(7)
 
 # plt.title("Scaling of classical vs quantum SAT solving")
-plt.yscale("log")
-ax1.set_xlabel("Number of boolean variables", fontsize=FONTSIZE_AXES)
+ax1.set_yscale("log")
+ax1.set_xlabel("Clause size (k) for k-SAT problem", fontsize=FONTSIZE_AXES)
 ax1.set_ylabel("Number of operations", fontsize=FONTSIZE_AXES)
-ax1.plot(x_values, classical_values, c="red", ls="-", label="Classical (exhaustive) SAT Solver")
-ax1.plot(x_values, sat_values, c="blue", ls="-", label="SAT Solver using Grover (optimized)")
+ax1.plot(x_values, sat_values_fancy, c="orange", ls="-", label="Grover (few ancillary bits)")
+ax1.plot(x_values, sat_values_normal, c="blue", ls="-", label="Grover (many ancillary bits)")
+ax1.plot(x_values, classical_values_exhaustive, c="red", ls="-", label="Classical (exhaustive)")
+ax1.plot(x_values, classical_values_decent, c="purple", ls="-", label="Classical (optimal)")
+ax1.grid()
 
-# ax2 = ax1.twinx()
-# ax2.plot(x_values, qubit_counts, c="green", ls="--", label="Number of qubits required for Grover")
+ax2.set_yscale("linear")
+ax2.set_xlabel("Clause size (k) for k-SAT problem", fontsize=FONTSIZE_AXES)
+ax2.set_ylabel("Number of qubits", fontsize=FONTSIZE_AXES)
+ax2.plot(x_values, qubit_counts_normal, c="blue", ls="--", label="Grover (many ancillary bits)")
+ax2.plot(x_values, qubit_counts_fancy, c="orange", ls="--", label="Grover (few ancillary bits)")
+ax2.grid()
 
-ax1.legend(fontsize=FONTSIZE_LEGEND)
-# ax2.legend(loc="lower right")
+ax1.legend(fontsize=FONTSIZE_LEGEND, loc="upper left")
+ax2.legend(fontsize=FONTSIZE_LEGEND, loc="upper left")
 plt.savefig("plots/sat_scaling.png")
 plt.show()
 
 
 # NAIVE VS SMART MULTI-ELEMENT SEARCH
-searchables = [
-    "00000001" + 3 * "1",
-    "00000010" + 3 * "1",
-    "00000100" + 3 * "1",
-    "00001000" + 3 * "1",
-    "00010000" + 3 * "1",
-    "00100000" + 3 * "1",
-    "01000000" + 3 * "1",
-    "10000000" + 3 * "1",
-    "10000001" + 3 * "1",
-    "10000010" + 3 * "1",
-    "10000100" + 3 * "1",
-    "10001000" + 3 * "1",
-    "10010000" + 3 * "1",
-    "10100000" + 3 * "1",
-    "11000000" + 3 * "1"
-]
+
+iterations = 40
+x_size = 10
 
 x_values = []
-naive_values = []
-smart_values = []
+avg_naive_values = []
+avg_smart_values = []
 
-for i in range(1, len(searchables)):
+for i in range(1, x_size + 1):
     x_values.append(i)
-    to_search = searchables[:i]
-    naive_count = 0
-    for t in to_search:
-        naive_count += grover_search_qasm([t], "no toffoli")[1]
-    naive_values.append(naive_count)
+    avg_naive_values.append(0)
+    avg_smart_values.append(0)
 
-    multi_count = grover_search_qasm(to_search, "no toffoli")[1]
-    smart_values.append(multi_count)
+for j in range(iterations):
+    searchables = [
+        "".join([random.choice("01") for i in range(10)])
+        for _ in range(x_size+1)
+    ]
+
+    naive_values = []
+    smart_values = []
+
+    for i in range(1, len(searchables)):
+        to_search = searchables[:i]
+        naive_count = 0
+        for t in to_search:
+            naive_count += grover_search_qasm([t], "no toffoli")[1]
+        avg_naive_values[i-1] += naive_count / iterations
+
+        multi_count = grover_search_qasm(to_search, "no toffoli")[1]
+        avg_smart_values[i-1] += multi_count / iterations
+
 
 # plt.title("Naive vs optimal multi-element search")
 plt.xlabel("Number of search elements", fontsize=FONTSIZE_AXES)
 plt.ylabel("Number of quantum operations", fontsize=FONTSIZE_AXES)
-plt.plot(x_values, naive_values, c="orange", ls="-", label="Naive multi-element search")
-plt.plot(x_values, smart_values, c="blue", ls="-", label="Optimal multi-element search")
-plt.legend(fontsize=FONTSIZE_LEGEND)
+plt.plot(x_values, avg_naive_values, c="orange", ls="-", label="Naive multi-element search")
+plt.plot(x_values, avg_smart_values, c="blue", ls="-", label="Optimal multi-element search")
+plt.legend(fontsize=FONTSIZE_LEGEND, loc="upper left")
+plt.xticks(list(range(1, 11)))
+plt.grid()
 
 plt.savefig("plots/naive_opt_mult_search.png")
 plt.show()
@@ -148,10 +171,6 @@ for qubits, runtimes in result_lists.items():
     std = np.std(runtimes)
 
     filtered_runtimes = list(filter(lambda value: value < avg + std, runtimes))
-    print(avg, std)
-    print(runtimes)
-    print(filtered_runtimes)
-    print()
     filtered_avg = sum(filtered_runtimes) / len(filtered_runtimes)
 
     x_values.append(qubits)
@@ -164,7 +183,8 @@ plt.yscale("log")
 plt.plot(x_values, maxs, "r-", label="Maximum runtime")
 plt.plot(x_values, filtered_avgs, "b-", label="Average runtime")
 plt.plot(x_values, mins, "g-", label="Minimum runtime")
-plt.legend(fontsize=FONTSIZE_LEGEND)
+plt.legend(fontsize=FONTSIZE_LEGEND, loc="upper left")
+plt.grid()
 
 # plt.title("Speed of quantum simulation of Grover's search")
 plt.xlabel("Length of search string", fontsize=FONTSIZE_AXES)

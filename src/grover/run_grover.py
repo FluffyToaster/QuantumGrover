@@ -4,13 +4,14 @@ from src.grover.sat_utilities import *
 import math
 
 
-def grover_sat_qasm(expr_string, mode, apply_optimization=True):
+def grover_sat_qasm(expr_string, cnot_mode, sat_mode="fancy", apply_optimization=True):
     """
     Generate the QASM needed to evaluate the SAT problem for a given boolean expression.
 
     Args:
         expr_string: A boolean expression as a string
-        mode: The mode for CNOTs (see main.py)
+        cnot_mode: The mode for CNOTs (see main.py)
+        sat_mode: The mode for the SAT solving circuit
         apply_optimization: Whether to apply the optimization algorithm
 
     Returns: A tuple of the following values:
@@ -30,13 +31,17 @@ def grover_sat_qasm(expr_string, mode, apply_optimization=True):
 
     expr = split_expression_evenly(expr)
 
-    # oracle_qasm, _, last_qubit_index = generate_sat_oracle(expr, control_names, True)
-    _, oracle_qasm, last_qubit_index = generate_fancy_sat_oracle(expr, [], control_names, is_toplevel=True)
+    if sat_mode == "normal":
+        oracle_qasm, _, last_qubit_index = generate_sat_oracle(expr, control_names, is_toplevel=True)
+    elif sat_mode == "fancy":
+        _, oracle_qasm, last_qubit_index = generate_fancy_sat_oracle(expr, [], control_names, is_toplevel=True)
+    else:
+        raise ValueError("Invalid SAT mode: {} instead of 'normal' or 'fancy'".format(sat_mode))
 
     qubit_count = last_qubit_index + 1
 
     # some modes may require many ancillary qubits for the diffusion operator!
-    if mode in ["normal", "no toffoli"]:
+    if cnot_mode in ["normal", "no toffoli"]:
         qubit_count = max(qubit_count, data_qubits * 2 - 3)
 
     qasm = "version 1.0\n" \
@@ -54,7 +59,7 @@ def grover_sat_qasm(expr_string, mode, apply_optimization=True):
     # diffusion
     qasm += fill("H", data_qubits)
     qasm += fill("X", data_qubits)
-    qasm += cnot_pillar(mode, data_qubits)
+    qasm += cnot_pillar(cnot_mode, data_qubits)
     qasm += fill("X", data_qubits)
     qasm += fill("H", data_qubits)
 

@@ -1,5 +1,6 @@
 import boolean
 from boolean.boolean import AND, OR, NOT, Symbol
+import random
 
 
 def generate_sat_oracle(expr: boolean.Expression, control_names, is_toplevel=False):
@@ -85,7 +86,7 @@ def split_expression_evenly(expr):
         if len(expr.args) > 3:
             left_expanded = split_expression_evenly(expr_type(*expr.args[:halfway]))
         else:
-            left_expanded = expr.args[0]
+            left_expanded = split_expression_evenly(expr.args[0])
 
         return expr_type(left_expanded, right_expanded)
     elif len(expr.args) == 2:
@@ -147,3 +148,37 @@ def generate_fancy_sat_oracle(expr, avoid, control_names, last_qubit=-1, is_topl
     ])
 
     return target_line, qasm, last_qubit
+
+
+def generate_ksat_expression(n, m, k):
+    """
+    Generate an arbitrary k-SAT expression according to the given parameters.
+
+    Args:
+        n: The number of groups
+        m: The number of variables in a group
+        k: The number of variables
+
+    Returns: A Boolean expression
+    """
+
+    if m > k:
+        raise ValueError("m > k not possible for kSAT")
+
+    alphabet = []
+    for i in range(k):
+        alphabet.append(chr(97+i))
+
+    expression = ""
+
+    for i in range(n):
+        literals = random.sample(alphabet, m)
+        expression += " and ({}".format(literals[0])
+        for l in literals[1:]:
+            if random.random() < 0.5:
+                expression += " or not({})".format(l)
+            else:
+                expression += " or {}".format(l)
+        expression += ")"
+
+    return expression.lstrip("and ")
