@@ -47,10 +47,11 @@ def normal_n_size_cnot(n, mode):
     if n == 1:
         local_qasm = "CNOT q[0],q[1]\n"
     elif n == 2:
-        if mode == "no toffoli":
-            local_qasm = alternative_toffoli(0, 1, 2)
-        else:
-            local_qasm = "Toffoli q[0],q[1],q[2]\n"
+        # if mode == "no toffoli":
+        #     local_qasm = alternative_toffoli(0, 1, 2)
+        # else:
+        #     local_qasm = "Toffoli q[0],q[1],q[2]\n"
+        local_qasm = "Toffoli q[0],q[1],q[2]\n"
     else:
         # for n > 2, there is no direct instruction in QASM, so we must generate an equivalent circuit
         # the core idea of a large CNOT is that we must AND-gate together all the control bits
@@ -81,10 +82,11 @@ def normal_n_size_cnot(n, mode):
                 # remove the used qubits from the list of bits to AND
                 bits_to_and = bits_to_and[2:] + [target]
 
-            if mode == "no toffoli":
-                gate_list.append(alternative_toffoli(a, b, target))
-            else:
-                gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, target))
+            # if mode == "no toffoli":
+            #     gate_list.append(alternative_toffoli(a, b, target))
+            # else:
+            #     gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, target))
+            gate_list.append("Toffoli q[{}],q[{}],q[{}]".format(a, b, target))
 
         # Apply the complete list of gates in reverse after the target is flipped
         # This undoes all operations on the ancillary qubits (so they remain 0)
@@ -152,17 +154,17 @@ def alternative_toffoli(control_1, control_2, target):
     local_qasm = ""
     local_qasm += apply("H", target)
     local_qasm += "CR q[{}],q[{}],{}\n".format(control_2, target, math.pi / 2)
-    local_qasm += apply("H", target)
+    # local_qasm += apply("H", target)
 
     local_qasm += "CNOT q[{}],q[{}]\n".format(control_1, control_2)
 
-    local_qasm += apply("H", target)
+    # local_qasm += apply("H", target)
     local_qasm += "CR q[{}],q[{}],{}\n".format(control_2, target, -math.pi / 2)
-    local_qasm += apply("H", target)
+    # local_qasm += apply("H", target)
 
     local_qasm += "CNOT q[{}],q[{}]\n".format(control_1, control_2)
 
-    local_qasm += apply("H", target)
+    # local_qasm += apply("H", target)
     local_qasm += "CR q[{}],q[{}],{}\n".format(control_1, target, math.pi / 2)
     local_qasm += apply("H", target)
 
@@ -176,7 +178,7 @@ def cnot_pillar(mode, data_qubits):
     Returns: Valid QASM to append to the program
     """
     local_qasm = "H q[{}]\n".format(data_qubits - 1)
-    if mode == "normal":
+    if mode in ["normal", "no toffoli"]:
         local_qasm += normal_n_size_cnot(data_qubits - 1, mode)
     elif mode == "crot":
         local_qasm += n_size_crot(data_qubits - 1, 0, data_qubits - 1, math.pi)

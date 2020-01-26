@@ -1,3 +1,4 @@
+from src.grover.qasm_utilities import alternative_toffoli
 # from bruteforcer import *
 # optimizations = generate_optimization_dict()
 
@@ -10,13 +11,14 @@ optimizations = {
 largest_opt = 3
 
 forbidden = [
+    ".grover_loop",
     "Toffoli",
     "CNOT",
     "CR"
 ]
 
 
-def apply_optimizations(qasm, qubit_count, data_qubits):
+def apply_optimizations(qasm, qubit_count, data_qubits, apply_clean_code=True):
     """
     Apply 3 types of optimization to the given QASM code:
         Combine groups of gates, such as H-X-H, to faster equivalent gates, Z in this case.
@@ -46,8 +48,9 @@ def apply_optimizations(qasm, qubit_count, data_qubits):
         prev_qasm = qasm[:]
         qasm = optimize_toffoli(qasm)
 
-    # tidy up "ugly" optimized code
-    qasm = clean_code(qasm)
+    if apply_clean_code:
+        # tidy up "ugly" optimized code
+        qasm = clean_code(qasm)
 
     return qasm
 
@@ -192,28 +195,29 @@ def optimize(qasm, qubit_count, data_qubits, mode="speed"):
         if gate not in ["H", "X", "Y", "Z"]:
             gate = "_"
 
+        if ":" in line:
+            raise ValueError("Optimizer does not work well with q[0:3] notation!\n"
+                             "Line: {}".format(line))
+
         if "[" in line:
-            if not any(f in line for f in forbidden):
-                qubit_string = line[line.index("[") + 1:line.index("]")]
-                if ":" in qubit_string:
-                    affected_qubits = list(range(int(qubit_string.split(":")[0]),
-                                                 int(qubit_string.split(":")[1]) + 1))
-                elif "," in qubit_string:
-                    affected_qubits = list(map(int, qubit_string.split(",")))
-                else:
-                    affected_qubits = [int(qubit_string)]
-            else:
-                qs = line.split()[1].split(",")
+            for element in line.split(" | "):
+                gate = element.split()[0].lstrip("{")
+                if gate not in ["H", "X", "Y", "Z"]:
+                    gate = "_"
 
-                # add rotation operators here
-                if "CR" in line:
-                    # if CR, the last element is not a qubit, but a rotation angle!
-                    qs = qs[:-1]
+                alt_affected_qubits = []
+                for possibly_affected in range(qubit_count):
+                    hits = [
+                        ",{},".format(possibly_affected),
+                        "[{},".format(possibly_affected),
+                        ",{}]".format(possibly_affected),
+                        "[{}]".format(possibly_affected)
+                    ]
+                    if any(h in element for h in hits):
+                        alt_affected_qubits.append(possibly_affected)
 
-                affected_qubits = map(lambda x: int(x.strip("q[]")), qs)
-
-            for a in affected_qubits:
-                gates_applied[a].append((q, gate))
+                for a in alt_affected_qubits:
+                    gates_applied[a].append((q, gate))
         else:
             for a in range(data_qubits):
                 gates_applied[a].append((q, gate))
@@ -256,7 +260,6 @@ def optimize(qasm, qubit_count, data_qubits, mode="speed"):
 
                 if any(f in qasm_lines[current_line] or f in qasm_lines[prev_line] for f in forbidden):
                     continue
-
                 # if this or the previous line has a break statement, no shifting possible
                 if current_gate == "_" or (gates[g - 1][1] == "_" and gates[g - 1][0] == prev_line):
                     continue
@@ -338,6 +341,46 @@ def optimize_toffoli(qasm):
     return "\n".join(qasm_lines).replace("\n\n", "\n")
 
 
+def replace_toffoli_with_alt(qasm):
+    qasm_lines = qasm.split("\n")
+    for current_line_index in range(len(qasm_lines)):
+        cur_line = qasm_lines[current_line_index]
+        if "Toffoli" in cur_line:
+            # find all Toffoli triplets in this line
+
+            cur_line_gates = cur_line.strip("{} |").split(" | ")
+            cur_line_toffolis = list(filter(lambda x: "Toffoli" in x, cur_line_gates))
+
+            multiple = len(cur_line_toffolis) > 1
+
+            line_strings = []
+            for i in range(7):
+                if multiple:
+                    line_strings.append("{")
+                else:
+                    line_strings.append("")
+
+            for current_t in cur_line_toffolis:
+                qubit_1, qubit_2, target_qubit = tuple(map(int, current_t.strip("Toffoli q[]").split("],q[")))
+                alt_qasm_lines = alternative_toffoli(qubit_1, qubit_2, target_qubit).split("\n")
+                for j in range(7):
+                    line_strings[j] += alt_qasm_lines[j]
+                    if multiple:
+                        line_strings[j] += " | "
+
+            if multiple:
+                for i in range(7):
+                    line_strings[i] = line_strings[i][:-3] + "}"
+
+            cur_line = "\n".join(line_strings)
+
+            qasm_lines[current_line_index] = cur_line
+
+    # remove blank lines
+    qasm_lines = list(filter(lambda x: x not in ["", "{}", " "], qasm_lines))
+    return "\n".join(qasm_lines).replace("\n\n", "\n")
+
+
 def clean_code(qasm):
     """
     Clean given QASM by rewriting each line to a more readable format.
@@ -385,3 +428,6 @@ def clean_code(qasm):
         qasm_lines[idx] = new_line
 
     return "\n".join(qasm_lines)
+
+
+# print(replace_toffoli_with_alt("{Toffoli q[0],q[1],q[6] | Toffoli q[2],q[3],q[7]}"))

@@ -119,8 +119,19 @@ def grover_search_qasm(search_targets, mode, apply_optimization=True):
     qasm += fill("X", data_qubits)
     qasm += fill("H", data_qubits)
 
-    if apply_optimization:
-        qasm = apply_optimizations(qasm, qubit_count, data_qubits)
+    if mode != "no toffoli":
+        if apply_optimization:
+            qasm = apply_optimizations(qasm, qubit_count, data_qubits)
+
+    elif mode == "no toffoli":
+
+        if apply_optimization:
+            qasm = optimize_toffoli(qasm)
+        # replace toffoli gates at the last minute, after optimisation, to ensure smallest circuit
+        qasm = replace_toffoli_with_alt(qasm)
+
+        if apply_optimization:
+            qasm = apply_optimizations(qasm, qubit_count, data_qubits)
 
     return qasm, iterations * qasm.count("\n"), qubit_count, data_qubits
 
@@ -196,6 +207,7 @@ def execute_sat_qasm(qi, qasm, shot_count, backend, qubit_count, data_qubits, pl
 
     Returns: A tuple of the following values:
         - histogram_list: a list of pairs, specifying a name and probability, as returned from QI
+        - likely_solutions: a list of bitstrings, all of which seem to solve the given formula, according to grover
         - runtime: The execution time on the QI backend
     """
 
@@ -211,6 +223,7 @@ def execute_sat_qasm(qi, qasm, shot_count, backend, qubit_count, data_qubits, pl
     else:
         histogram_list = interpret_results(result, qubit_count, data_qubits, plot)
 
+    likely_solutions = []
     print("Interpreting SAT results:")
     highest_prob = max(map(lambda _: _[1], histogram_list))
     for h in histogram_list:
@@ -218,6 +231,7 @@ def execute_sat_qasm(qi, qasm, shot_count, backend, qubit_count, data_qubits, pl
         if prob > highest_prob / 2:
             bits = bin(int(name, 16))[3:]
             print("{} seems to satisfy the formula:".format(bits))
+            likely_solutions.append(bits)
 
-    return histogram_list, runtime
+    return histogram_list, likely_solutions, runtime
 

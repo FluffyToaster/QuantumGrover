@@ -5,27 +5,40 @@ import numpy as np
 FONTSIZE_AXES = 13
 FONTSIZE_LEGEND = 13
 
+# shots to use in averaging
+# every plot takes about 2*SHOT_COUNT seconds to generate
+SHOT_COUNT = 15
+
 # 4 IMPLEMENTATION GROVER SEARCH LINE COUNT PLOT
+xrange = range(3, 12)
 x_values = []
 opt_norm_values = []
 unopt_norm_values = []
 opt_fancy_values = []
 unopt_fancy_values = []
 
-for i in range(3, 12):
+for i in xrange:
+    opt_norm_values.append(0)
+    unopt_norm_values.append(0)
+    opt_fancy_values.append(0)
+    unopt_fancy_values.append(0)
+
+for i in xrange:
     x_values.append(i)
 
-    opt_norm = grover_search_qasm(["1" * i], "no toffoli")[1]
-    opt_norm_values.append(opt_norm)
+    for j in range(SHOT_COUNT):
+        search_term = ["".join([random.choice("01") for _ in range(i)])]
+        opt_norm = grover_search_qasm(search_term, "no toffoli")[1]
+        opt_norm_values[i-3] = opt_norm / SHOT_COUNT
 
-    unopt_norm = grover_search_qasm(["1" * i], "no toffoli", apply_optimization=False)[1]
-    unopt_norm_values.append(unopt_norm)
+        unopt_norm = grover_search_qasm(search_term, "no toffoli", apply_optimization=False)[1]
+        unopt_norm_values[i-3] = unopt_norm / SHOT_COUNT
 
-    opt_fancy = grover_search_qasm(["1" * i], "fancy cnot")[1]
-    opt_fancy_values.append(opt_fancy)
+        opt_fancy = grover_search_qasm(search_term, "fancy cnot")[1]
+        opt_fancy_values[i-3] = opt_fancy / SHOT_COUNT
 
-    unopt_fancy = grover_search_qasm(["1" * i], "fancy cnot", apply_optimization=False)[1]
-    unopt_fancy_values.append(unopt_fancy)
+        unopt_fancy = grover_search_qasm(search_term, "fancy cnot", apply_optimization=False)[1]
+        unopt_fancy_values[i-3] = unopt_fancy / SHOT_COUNT
 
 # plt.title("Scaling of different CNOT implementations")
 plt.yscale("log")
@@ -45,7 +58,7 @@ plt.show()
 # SAT VS CLASSICAL PLOT
 
 xrange = list(range(2, 17))
-batch_size = 10
+SHOT_COUNT = 10
 
 x_values = []
 sat_values_normal = []
@@ -71,19 +84,19 @@ for i in xrange:
     group_size = i
     alphabet_size = i
 
-    for j in range(batch_size):
+    for j in range(SHOT_COUNT):
         bool_expression = generate_ksat_expression(group_count, group_size, alphabet_size)
         _, sat_val_normal, qubit_count_normal, _ = grover_sat_qasm(bool_expression, "normal", sat_mode="normal")
         _, sat_val_fancy, qubit_count_fancy, _ = grover_sat_qasm(bool_expression, "normal", sat_mode="fancy")
 
-        sat_values_normal[i-2] += sat_val_normal / batch_size
-        sat_values_fancy[i-2] += sat_val_fancy / batch_size
-        qubit_counts_normal[i-2] += qubit_count_normal / batch_size
-        qubit_counts_fancy[i-2] += qubit_count_fancy / batch_size
+        sat_values_normal[i-2] += sat_val_normal / SHOT_COUNT
+        sat_values_fancy[i-2] += sat_val_fancy / SHOT_COUNT
+        qubit_counts_normal[i-2] += qubit_count_normal / SHOT_COUNT
+        qubit_counts_fancy[i-2] += qubit_count_fancy / SHOT_COUNT
 
         operation_count = bool_expression.count("or") + bool_expression.count("not") + bool_expression.count("and")
-        classical_values_exhaustive[i-2] += (2 ** alphabet_size) * operation_count / batch_size
-        classical_values_decent[i-2] += (2 * (1 - 1/group_size)) ** alphabet_size * 5 / batch_size
+        classical_values_exhaustive[i-2] += (2 ** alphabet_size) * operation_count / SHOT_COUNT
+        classical_values_decent[i-2] += (2 * (1 - 1/group_size)) ** alphabet_size * 5 / SHOT_COUNT
 
 fig, (ax1, ax2) = plt.subplots(nrows=2, gridspec_kw={'height_ratios': [2, 1]})
 fig.set_figheight(7)
@@ -92,8 +105,8 @@ fig.set_figheight(7)
 ax1.set_yscale("log")
 ax1.set_xlabel("Clause size (k) for k-SAT problem", fontsize=FONTSIZE_AXES)
 ax1.set_ylabel("Number of operations", fontsize=FONTSIZE_AXES)
-ax1.plot(x_values, sat_values_fancy, c="orange", ls="-", label="Grover (few ancillary qubits)")
-ax1.plot(x_values, sat_values_normal, c="blue", ls="-", label="Grover (many ancillary qubits)")
+ax1.plot(x_values, sat_values_fancy, c="orange", ls="-", label="Grover (reuse ancillary qubits)")
+ax1.plot(x_values, sat_values_normal, c="blue", ls="-", label="Grover (reuse gate results)")
 ax1.plot(x_values, classical_values_exhaustive, c="red", ls="-", label="Classical (exhaustive)")
 ax1.plot(x_values, classical_values_decent, c="purple", ls="-", label="Classical (optimal)")
 ax1.grid()
@@ -101,8 +114,8 @@ ax1.grid()
 ax2.set_yscale("linear")
 ax2.set_xlabel("Clause size (k) for k-SAT problem", fontsize=FONTSIZE_AXES)
 ax2.set_ylabel("Number of qubits", fontsize=FONTSIZE_AXES)
-ax2.plot(x_values, qubit_counts_normal, c="blue", ls="--", label="Grover (many ancillary qubits)")
-ax2.plot(x_values, qubit_counts_fancy, c="orange", ls="--", label="Grover (few ancillary qubits)")
+ax2.plot(x_values, qubit_counts_normal, c="blue", ls="--", label="Grover (reuse gate results)")
+ax2.plot(x_values, qubit_counts_fancy, c="orange", ls="--", label="Grover (reuse ancillary qubits)")
 ax2.grid()
 
 ax1.legend(fontsize=FONTSIZE_LEGEND, loc="upper left")
@@ -113,7 +126,7 @@ plt.show()
 
 # NAIVE VS SMART MULTI-ELEMENT SEARCH
 
-iterations = 40
+SHOT_COUNT = 10
 x_size = 10
 
 x_values = []
@@ -125,7 +138,7 @@ for i in range(1, x_size + 1):
     avg_naive_values.append(0)
     avg_smart_values.append(0)
 
-for j in range(iterations):
+for j in range(SHOT_COUNT):
     searchables = [
         "".join([random.choice("01") for i in range(10)])
         for _ in range(x_size+1)
@@ -139,10 +152,10 @@ for j in range(iterations):
         naive_count = 0
         for t in to_search:
             naive_count += grover_search_qasm([t], "no toffoli")[1]
-        avg_naive_values[i-1] += naive_count / iterations
+        avg_naive_values[i-1] += naive_count / SHOT_COUNT
 
         multi_count = grover_search_qasm(to_search, "no toffoli")[1]
-        avg_smart_values[i-1] += multi_count / iterations
+        avg_smart_values[i-1] += multi_count / SHOT_COUNT
 
 
 # plt.title("Naive vs optimal multi-element search")
