@@ -42,7 +42,7 @@ BOOL_EXPR = "(a and b and c and d) or (a and b and not(c) and not(d))"
 # BOOL_EXPR = generate_ksat_expression(4, 5, 5)
 # BOOL_EXPR = "(c or not(d) or a or not(b) or not(e)) and (c or not(e) or not(a) or not(b) or d) and (a or e or b or not(d) or c) and (b or a or not(c) or e or d)"
 # BOOL_EXPR = "(a and b and c and d) or (a and b and c and d)"
-qasm, _, qubit_count, data_qubits = grover_sat_qasm(BOOL_EXPR, MODE, sat_mode="normal")
+qasm, _, qubit_count, data_qubits = generate_sat_qasm(BOOL_EXPR, MODE, sat_mode="normal")
 # write_file = open("qasms/latest_sat.qasm", "w")
 # write_file.write(qasm)
 # write_file.close()

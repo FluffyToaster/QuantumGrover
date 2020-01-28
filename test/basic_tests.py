@@ -19,7 +19,7 @@ SEARCH_TARGETS = [
 ]
 
 for cnot_mode in cnot_modes:
-    qasm, _, qubit_count, data_qubits = grover_search_qasm(SEARCH_TARGETS, cnot_mode)
+    qasm, _, qubit_count, data_qubits = generate_search_qasm(SEARCH_TARGETS, cnot_mode)
     _, target_probs, non_target_prob, _ = execute_search_qasm(SEARCH_TARGETS, qi, qasm, SHOT_COUNT, backend, qubit_count, data_qubits, plot=False)
     assert non_target_prob < 0.1, "Probability of missing target >0.1 for basic multi element search! (mode {})".format(cnot_mode)
     assert sum(target_probs) + non_target_prob > 0.999, "Total probability not 1, incorrent QASM produced? (mode {})".format(cnot_mode)
@@ -31,7 +31,7 @@ SOLUTIONS = {"1111", "1100"}
 
 for cnot_mode in cnot_modes:
     for sat_mode in sat_modes:
-        qasm, _, qubit_count, data_qubits = grover_sat_qasm(BOOL_EXPR, cnot_mode, sat_mode=sat_mode)
+        qasm, _, qubit_count, data_qubits = generate_sat_qasm(BOOL_EXPR, cnot_mode, sat_mode=sat_mode)
         suggested_solutions = execute_sat_qasm(qi, qasm, SHOT_COUNT, backend, qubit_count, data_qubits, plot=False)[1]
 
         assert set(suggested_solutions) == SOLUTIONS, "Invalid solution set " \

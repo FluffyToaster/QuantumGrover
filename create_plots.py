@@ -28,16 +28,16 @@ for i in xrange:
 
     for j in range(SHOT_COUNT):
         search_term = ["".join([random.choice("01") for _ in range(i)])]
-        opt_norm = grover_search_qasm(search_term, "no toffoli")[1]
+        opt_norm = generate_search_qasm(search_term, "no toffoli")[1]
         opt_norm_values[i-3] = opt_norm / SHOT_COUNT
 
-        unopt_norm = grover_search_qasm(search_term, "no toffoli", apply_optimization=False)[1]
+        unopt_norm = generate_search_qasm(search_term, "no toffoli", apply_optimization=False)[1]
         unopt_norm_values[i-3] = unopt_norm / SHOT_COUNT
 
-        opt_fancy = grover_search_qasm(search_term, "fancy cnot")[1]
+        opt_fancy = generate_search_qasm(search_term, "fancy cnot")[1]
         opt_fancy_values[i-3] = opt_fancy / SHOT_COUNT
 
-        unopt_fancy = grover_search_qasm(search_term, "fancy cnot", apply_optimization=False)[1]
+        unopt_fancy = generate_search_qasm(search_term, "fancy cnot", apply_optimization=False)[1]
         unopt_fancy_values[i-3] = unopt_fancy / SHOT_COUNT
 
 # plt.title("Scaling of different CNOT implementations")
@@ -86,8 +86,8 @@ for i in xrange:
 
     for j in range(SHOT_COUNT):
         bool_expression = generate_ksat_expression(group_count, group_size, alphabet_size)
-        _, sat_val_normal, qubit_count_normal, _ = grover_sat_qasm(bool_expression, "normal", sat_mode="normal")
-        _, sat_val_fancy, qubit_count_fancy, _ = grover_sat_qasm(bool_expression, "normal", sat_mode="fancy")
+        _, sat_val_normal, qubit_count_normal, _ = generate_sat_qasm(bool_expression, "normal", sat_mode="normal")
+        _, sat_val_fancy, qubit_count_fancy, _ = generate_sat_qasm(bool_expression, "normal", sat_mode="fancy")
 
         sat_values_normal[i-2] += sat_val_normal / SHOT_COUNT
         sat_values_fancy[i-2] += sat_val_fancy / SHOT_COUNT
@@ -151,10 +151,10 @@ for j in range(SHOT_COUNT):
         to_search = searchables[:i]
         naive_count = 0
         for t in to_search:
-            naive_count += grover_search_qasm([t], "no toffoli")[1]
+            naive_count += generate_search_qasm([t], "no toffoli")[1]
         avg_naive_values[i-1] += naive_count / SHOT_COUNT
 
-        multi_count = grover_search_qasm(to_search, "no toffoli")[1]
+        multi_count = generate_search_qasm(to_search, "no toffoli")[1]
         avg_smart_values[i-1] += multi_count / SHOT_COUNT
 
 
