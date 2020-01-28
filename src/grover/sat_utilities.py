@@ -82,7 +82,7 @@ def generate_sat_oracle_reuse_gates(expr: boolean.Expression, control_names, is_
     return local_qasm, target_qubit, highest_qubit_used
 
 
-def generate_sat_oracle_reuse_qubits(expr, avoid, control_names, last_qubit=-1, is_toplevel=False):
+def generate_sat_oracle_reuse_qubits(expr, control_names, avoid, last_qubit=-1, is_toplevel=False):
     """
     Generate a SAT oracle that saves on ancillary qubits by resetting them, so that they can be reused.
 
@@ -106,10 +106,10 @@ def generate_sat_oracle_reuse_qubits(expr, avoid, control_names, last_qubit=-1, 
         raise ValueError("Fancy SAT Oracle expects only 1 and 2-argument expressions, but got {}".format(expr.args))
 
     if type(expr) == Symbol:
-        return control_names.index(expr), "", last_qubit
+        return "", control_names.index(expr), last_qubit
     elif type(expr) == NOT:
         qubit_index = control_names.index(expr.args[0])
-        return qubit_index, "X q[{}]".format(qubit_index), last_qubit
+        return "X q[{}]".format(qubit_index), qubit_index, last_qubit
     elif type(expr) == AND:
         generate_func = generate_and
     elif type(expr) == OR:
@@ -120,11 +120,13 @@ def generate_sat_oracle_reuse_qubits(expr, avoid, control_names, last_qubit=-1, 
     left_expr = expr.args[0]
     right_expr = expr.args[1]
 
-    left_target_qubit, left_qasm, left_last_qubit = generate_sat_oracle_reuse_qubits(left_expr, avoid[:], control_names,
-                                                                             last_qubit)
+    left_qasm, left_target_qubit, left_last_qubit = generate_sat_oracle_reuse_qubits(left_expr, control_names,
+                                                                                     avoid[:],
+                                                                                     last_qubit)
     avoid.append(left_target_qubit)
-    right_target_qubit, right_qasm, right_last_qubit = generate_sat_oracle_reuse_qubits(right_expr, avoid[:], control_names,
-                                                                                last_qubit)
+    right_qasm, right_target_qubit, right_last_qubit = generate_sat_oracle_reuse_qubits(right_expr, control_names,
+                                                                                        avoid[:],
+                                                                                        last_qubit)
     avoid.append(right_target_qubit)
 
     target_qubit = -1
@@ -153,10 +155,13 @@ def generate_sat_oracle_reuse_qubits(expr, avoid, control_names, last_qubit=-1, 
         *left_qasm.split("\n")[::-1]
     ])
 
-    return target_qubit, local_qasm, last_qubit
+    return local_qasm, target_qubit, last_qubit
 
 
 def generate_and(qubit_1, qubit_2, target_qubit):
+    """
+    Generate an AND in qasm code (just a Toffoli).
+    """
     if qubit_1 == qubit_2:
         return "CNOT q[{}],q[{}]\n".format(qubit_1, target_qubit)
 
@@ -164,6 +169,9 @@ def generate_and(qubit_1, qubit_2, target_qubit):
 
 
 def generate_or(qubit_1, qubit_2, target_qubit):
+    """
+    Generate an OR in qasm code (Toffoli with X gates).
+    """
     if qubit_1 == qubit_2:
         return "CNOT q[{}],q[{}]\n".format(qubit_1, target_qubit)
 
@@ -174,6 +182,15 @@ def generate_or(qubit_1, qubit_2, target_qubit):
 
 
 def split_expression_evenly(expr):
+    """
+    Split a Boolean expression as evenly as possible into a binary tree.
+
+    Args:
+        expr: The Boolean expression to split
+
+    Returns: The same expression, where all gates are applied to exactly 2 elements
+    """
+
     expr_type = type(expr)
     if len(expr.args) > 2:
         halfway = int(len(expr.args) / 2)
@@ -203,7 +220,6 @@ def generate_ksat_expression(n, m, k):
 
     Returns: A Boolean expression
     """
-
     if m > k:
         raise ValueError("m > k not possible for kSAT")
 

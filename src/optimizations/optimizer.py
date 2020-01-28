@@ -1,5 +1,5 @@
-from src.grover.qasm_utilities import alternative_toffoli
-# from bruteforcer import *
+from src.grover.search_utilities import alternative_toffoli
+# from src.optimizations.bruteforcer import *
 # optimizations = generate_optimization_dict()
 
 optimizations = {
@@ -18,7 +18,7 @@ forbidden = [
 ]
 
 
-def apply_optimizations(qasm, qubit_count, data_qubits, apply_clean_code=True):
+def apply_optimizations(qasm, qubit_count, data_qubits):
     """
     Apply 3 types of optimization to the given QASM code:
         Combine groups of gates, such as H-X-H, to faster equivalent gates, Z in this case.
@@ -27,6 +27,8 @@ def apply_optimizations(qasm, qubit_count, data_qubits, apply_clean_code=True):
 
     Args:
         qasm: Valid QASM code to optimize
+        qubit_count: The total number of qubits
+        data_qubits: The number of qubits that are not ancillaries
 
     Returns: A equivalent piece of QASM with optimizations applied
     """
@@ -48,9 +50,8 @@ def apply_optimizations(qasm, qubit_count, data_qubits, apply_clean_code=True):
         prev_qasm = qasm[:]
         qasm = optimize_toffoli(qasm)
 
-    if apply_clean_code:
-        # tidy up "ugly" optimized code
-        qasm = clean_code(qasm)
+    # tidy up "ugly" optimized code
+    qasm = clean_code(qasm)
 
     return qasm
 
@@ -88,45 +89,6 @@ def remove_gate_from_line(local_qasm_line, gate_symbol, qubit_index):
     return local_qasm_line
 
 
-def remove_toffoli_from_line(local_qasm_line, qubit_1, qubit_2, target_qubit):
-    single_application = "Toffoli q[{}],q[{}],q[{}]".format(qubit_1, qubit_2, target_qubit)
-
-    # if there is a parallel bar right
-    local_qasm_line = local_qasm_line.replace(single_application + " | ", "")
-    # else: if there is a parallel bar left
-    local_qasm_line = local_qasm_line.replace(" | " + single_application, "")
-    # else: if it is the only gate in parallelized brackets
-    local_qasm_line = local_qasm_line.replace("{" + single_application + "}", "")
-    # else: if it is not parellelized at all
-    local_qasm_line = local_qasm_line.replace(single_application, "")
-    return local_qasm_line
-
-
-def add_toffoli_to_line(local_qasm_line, qubit_1, qubit_2, target_qubit):
-    single_application = "Toffoli q[{}],q[{}],q[{}]".format(qubit_1, qubit_2, target_qubit)
-
-    # if the line is not empty, we need to consider what's already present
-    if local_qasm_line != "":
-        # a bracket indicates this line is parallelized with the { gate_1 | gate_2 | gate_3 } syntax
-        if "{" in local_qasm_line:
-            # remove } from the line and add it back at the end
-            local_qasm_line = local_qasm_line.rstrip("}| \n") + \
-                              " | " + \
-                              single_application + \
-                              "}\n"
-
-        # no bracket means we have to add the parallelization syntax ourselves
-        else:
-            local_qasm_line = "{" + local_qasm_line.rstrip("\n") + \
-                              " | " + \
-                              single_application + "}\n"
-
-    # else, if the line IS empty, we can just put this gate in directly
-    else:
-        local_qasm_line = single_application + "\n"
-    return local_qasm_line
-
-
 def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
     """
     Add in parallel the application of a gate on a qubit.
@@ -139,7 +101,6 @@ def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
     """
 
     # if another operation is already called on this qubit, we have to put the new gate on a new line
-    # TODO investigate if this breaks for QUBIT_COUNT > 9?
     if "[" + str(qubit_index) + "]" in local_qasm_line \
             or "[" + str(qubit_index) + "," in local_qasm_line \
             or "," + str(qubit_index) + "," in local_qasm_line \
@@ -168,12 +129,77 @@ def add_gate_to_line(local_qasm_line, gate_symbol, qubit_index):
     return local_qasm_line
 
 
+def remove_toffoli_from_line(local_qasm_line, qubit_1, qubit_2, target_qubit):
+    """
+    Remove a specific Toffoli gate from a line of qasm.
+
+    Args:
+        local_qasm_line: The line of qasm
+        qubit_1: The first control qubit of the Toffoli gate
+        qubit_2: The second control qubit
+        target_qubit: The target qubit
+
+    Returns: The same line of qasm without the Toffoli gate call
+
+    """
+    single_application = "Toffoli q[{}],q[{}],q[{}]".format(qubit_1, qubit_2, target_qubit)
+
+    # if there is a parallel bar right
+    local_qasm_line = local_qasm_line.replace(single_application + " | ", "")
+    # else: if there is a parallel bar left
+    local_qasm_line = local_qasm_line.replace(" | " + single_application, "")
+    # else: if it is the only gate in parallelized brackets
+    local_qasm_line = local_qasm_line.replace("{" + single_application + "}", "")
+    # else: if it is not parellelized at all
+    local_qasm_line = local_qasm_line.replace(single_application, "")
+    return local_qasm_line
+
+
+def add_toffoli_to_line(local_qasm_line, qubit_1, qubit_2, target_qubit):
+    """
+    Add a single Toffoli gate application to the given line of qasm.
+
+    Args:
+        local_qasm_line: The line of qasm
+        qubit_1: The first control qubit
+        qubit_2: The second control qubit
+        target_qubit: The target qubit
+
+    Returns: The same line of qasm with the Toffoli gate added in parallel
+    """
+
+    single_application = "Toffoli q[{}],q[{}],q[{}]".format(qubit_1, qubit_2, target_qubit)
+
+    # if the line is not empty, we need to consider what's already present
+    if local_qasm_line != "":
+        # a bracket indicates this line is parallelized with the { gate_1 | gate_2 | gate_3 } syntax
+        if "{" in local_qasm_line:
+            # remove } from the line and add it back at the end
+            local_qasm_line = local_qasm_line.rstrip("}| \n") + \
+                              " | " + \
+                              single_application + \
+                              "}\n"
+
+        # no bracket means we have to add the parallelization syntax ourselves
+        else:
+            local_qasm_line = "{" + local_qasm_line.rstrip("\n") + \
+                              " | " + \
+                              single_application + "}\n"
+
+    # else, if the line IS empty, we can just put this gate in directly
+    else:
+        local_qasm_line = single_application + "\n"
+    return local_qasm_line
+
+
 def optimize(qasm, qubit_count, data_qubits, mode="speed"):
     """
     Apply a single pass of performance-oriented optimizations to the given QASM.
 
     Args:
         qasm: A valid QASM program to optimize.
+        qubit_count: The total number of qubits
+        data_qubits: The number of qubits that are not ancillaries
         mode: Setting that determines the type of optimization:
             "speed" -> combine gates into equivalent smaller gates
             "style" -> parallelize gates for speedup and aesthetics
@@ -186,8 +212,8 @@ def optimize(qasm, qubit_count, data_qubits, mode="speed"):
     for i in range(qubit_count):
         gates_applied.append([])
 
-    for q in range(len(qasm_lines)):
-        line = qasm_lines[q]
+    for qasm_line_index in range(len(qasm_lines)):
+        line = qasm_lines[qasm_line_index]
         if len(line) == 0:
             continue
 
@@ -217,62 +243,62 @@ def optimize(qasm, qubit_count, data_qubits, mode="speed"):
                         alt_affected_qubits.append(possibly_affected)
 
                 for a in alt_affected_qubits:
-                    gates_applied[a].append((q, gate))
+                    gates_applied[a].append((qasm_line_index, gate))
         else:
             for a in range(data_qubits):
-                gates_applied[a].append((q, gate))
+                gates_applied[a].append((qasm_line_index, gate))
 
-    for qubit in range(len(gates_applied)):
-        gates = gates_applied[qubit]
+    for qubit_index in range(len(gates_applied)):
+        gates = gates_applied[qubit_index]
         skip_counter = 0
-        for g in range(len(gates)):
+        for gate_index in range(len(gates)):
             if skip_counter > 0:
                 skip_counter -= 1
                 continue
 
             if mode == "speed":
                 for offset in range(0, largest_opt - 1):
-                    next_gates = "".join(map(lambda _: _[1], gates[g:g+largest_opt-offset]))
+                    next_gates = "".join(map(lambda _: _[1], gates[gate_index:gate_index+largest_opt-offset]))
                     if next_gates in optimizations:
                         replacement = optimizations[next_gates]
 
-                        line_indices = list(map(lambda _: _[0], gates[g:g+largest_opt-offset]))
+                        line_indices = list(map(lambda _: _[0], gates[gate_index:gate_index+largest_opt-offset]))
                         # first, remove all gates that are to be replaced
                         for idx, line_number in enumerate(line_indices):
                             qasm_lines[line_number] = remove_gate_from_line(qasm_lines[line_number],
                                                                             next_gates[idx],
-                                                                            qubit)
+                                                                            qubit_index)
 
                         # add replacement gate to first line index
                         # unless there is no replacement gate, of course
                         if replacement != "":
                             qasm_lines[line_indices[0]] = add_gate_to_line(qasm_lines[line_indices[0]],
                                                                            replacement,
-                                                                           qubit)
+                                                                           qubit_index)
 
                         # ensure we skip a few gates
                         skip_counter += len(next_gates)
 
             elif mode == "style":
                 # check if we can shift left to align with other gates
-                current_line, current_gate = gates[g]
+                current_line, current_gate = gates[gate_index]
                 prev_line = current_line - 1
 
                 if any(f in qasm_lines[current_line] or f in qasm_lines[prev_line] for f in forbidden):
                     continue
                 # if this or the previous line has a break statement, no shifting possible
-                if current_gate == "_" or (gates[g - 1][1] == "_" and gates[g - 1][0] == prev_line):
+                if current_gate == "_" or (gates[gate_index - 1][1] == "_" and gates[gate_index - 1][0] == prev_line):
                     continue
 
                 if qasm_lines[prev_line] == "":
                     continue
 
                 # having passed these checks, we can try to actually shift
-                if current_gate in ["H", "X", "Y", "Z"] and str(qubit) not in qasm_lines[prev_line]:
+                if current_gate in ["H", "X", "Y", "Z"] and str(qubit_index) not in qasm_lines[prev_line]:
                     # remove from current line
-                    qasm_lines[current_line] = remove_gate_from_line(qasm_lines[current_line], current_gate, qubit)
+                    qasm_lines[current_line] = remove_gate_from_line(qasm_lines[current_line], current_gate, qubit_index)
                     # add to left
-                    qasm_lines[prev_line] = add_gate_to_line(qasm_lines[prev_line], current_gate, qubit)
+                    qasm_lines[prev_line] = add_gate_to_line(qasm_lines[prev_line], current_gate, qubit_index)
 
     # remove blank lines
     qasm_lines = list(filter(lambda x: x not in ["", "{}", " "], qasm_lines))
@@ -342,6 +368,15 @@ def optimize_toffoli(qasm):
 
 
 def replace_toffoli_with_alt(qasm):
+    """
+    Replace all Toffoli gates (including parallelized ones) by their alternative representation.
+    See src.grover.search_utilies.alternative_toffoli for more details.
+
+    Args:
+        qasm: The full qasm program that contains Toffoli gates to replace
+
+    Returns: The same qasm with Toffoli gates replaced.
+    """
     qasm_lines = qasm.split("\n")
     for current_line_index in range(len(qasm_lines)):
         cur_line = qasm_lines[current_line_index]
@@ -428,6 +463,3 @@ def clean_code(qasm):
         qasm_lines[idx] = new_line
 
     return "\n".join(qasm_lines)
-
-
-# print(replace_toffoli_with_alt("{Toffoli q[0],q[1],q[6] | Toffoli q[2],q[3],q[7]}"))

@@ -188,7 +188,7 @@ def cnot_pillar(mode, data_qubits):
     return local_qasm
 
 
-def oracle(search_term, data_qubits):
+def search_oracle(search_term, data_qubits):
     """
     Generate a common structure that is used in the oracle circuit.
     It flips all bits that correspond to a 0 in the search target.
@@ -255,14 +255,14 @@ def interpret_results(result_dict, qubit_count, data_qubits, plot=True):
         # generate corresponding binary name (so "11" instead of "3")
         name = int_to_bits(i, qubit_count)
 
-        ordered_bars[i] = (hex(int(name, 2))[2:], bar)
+        ordered_bars[i] = (name, bar)
 
     if plot:
         for b in ordered_bars:
             # check if the given bar has 0's for all the ancillary qubits
             # if it does not, we assume it is irrelevant for the histogram, so we don't plot it
-            if int(b[0], 16) < 2 ** data_qubits:
-                plt.bar(b[0], b[1])
+            if int(b[0], 2) < 2 ** data_qubits:
+                plt.bar(b[0][-data_qubits:], b[1])
             # if a result is returned where some ancillary qubits were not zero, we have a problem
             elif b[1] != 0:
                 raise ValueError("\tNonzero result from 'impossible' measurement:\n"
@@ -278,6 +278,15 @@ def interpret_results(result_dict, qubit_count, data_qubits, plot=True):
 
 
 def gray_code(n):
+    """
+    Generate a Gray code sequence of bit string with length n.
+
+    Args:
+        n: The size for each element in the Gray code
+
+    Returns: An array of strings forming a Gray code
+    """
+
     if n == 1:
         return ["0", "1"]
     else:
