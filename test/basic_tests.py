@@ -20,7 +20,7 @@ search_targets = [
 
 for cnot_mode in cnot_modes:
     qasm, _, qubit_count, data_qubits = generate_search_qasm(search_targets, cnot_mode)
-    temp, target_probs, non_target_prob, _ = execute_search_qasm(search_targets, qi, qasm, shot_count, backend, qubit_count, data_qubits, plot=False)
+    _, target_probs, non_target_prob, _ = execute_search_qasm(search_targets, qi, qasm, shot_count, backend, qubit_count, data_qubits, plot=False)
 
     assert non_target_prob < 0.1, "Probability of missing target >0.1 for basic multi element search! (mode {})".format(cnot_mode)
     assert sum(target_probs) + non_target_prob > 0.999, "Total probability not 1, incorrent QASM produced? (mode {})".format(cnot_mode)

@@ -85,8 +85,8 @@ for i in xrange:
 
     for j in range(SHOT_COUNT):
         bool_expression = generate_ksat_expression(group_count, group_size, alphabet_size)
-        _, sat_val_normal, qubit_count_normal, _ = generate_sat_qasm(bool_expression, "normal", sat_mode="normal")
-        _, sat_val_fancy, qubit_count_fancy, _ = generate_sat_qasm(bool_expression, "normal", sat_mode="fancy")
+        _, sat_val_normal, qubit_count_normal, _ = generate_sat_qasm(bool_expression, "normal", sat_mode="reuse gates")
+        _, sat_val_fancy, qubit_count_fancy, _ = generate_sat_qasm(bool_expression, "normal", sat_mode="reuse qubits")
 
         sat_values_normal[i-2] += sat_val_normal / SHOT_COUNT
         sat_values_fancy[i-2] += sat_val_fancy / SHOT_COUNT

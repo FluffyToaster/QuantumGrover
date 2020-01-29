@@ -37,5 +37,5 @@ execute_search_qasm(search_targets, qi, qasm, shot_count, backend, qubit_count, 
 # SAT example
 boolean_expr = "(not(a) and not(b) and not(c))"
 
-qasm, _, qubit_count, data_qubits = generate_sat_qasm(boolean_expr, mode, sat_mode="normal", apply_optimization=apply_optimization_to_qasm)
+qasm, _, qubit_count, data_qubits = generate_sat_qasm(boolean_expr, mode, sat_mode="reuse gates", apply_optimization=apply_optimization_to_qasm)
 execute_sat_qasm(qi, qasm, shot_count, backend, qubit_count, data_qubits, True)

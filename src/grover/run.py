@@ -125,7 +125,7 @@ def execute_search_qasm(search_targets, qi, qasm, shot_count, backend, qubit_cou
     return histogram_list, target_probs, non_target_prob, runtime
 
 
-def generate_sat_qasm(expr_string, cnot_mode, sat_mode="fancy", apply_optimization=True):
+def generate_sat_qasm(expr_string, cnot_mode, sat_mode, apply_optimization=True):
     """
     Generate the QASM needed to evaluate the SAT problem for a given boolean expression.
 
